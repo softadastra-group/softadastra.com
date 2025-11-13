@@ -1,0 +1,94 @@
+<?php
+
+namespace Modules\User\Core\Factories;
+
+use Modules\User\Core\Models\User;
+use Modules\User\Core\ValueObjects\Email;
+use Modules\User\Core\ValueObjects\Role;
+
+class UserFactory
+{
+    /**
+     * Crée un utilisateur à partir de données brutes (array)
+     *
+     * @param array $data
+     *   Clés possibles : id, fullname, email, photo, password, roles (array de Role), status,
+     *   verifiedEmail, coverPhoto, accessToken, refreshToken, bio, phone, username,
+     *   cityName, countryName, countryImageUrl
+     *
+     * @return User
+     */
+    public static function createFromArray(array $data): User
+    {
+        // Création du Value Object Email
+        $email = new Email($data['email']);
+
+        // Création des rôles
+        $roles = [];
+        if (!empty($data['roles'])) {
+            foreach ($data['roles'] as $roleData) {
+                // $roleData peut être un objet Role déjà ou un tableau ['id' => x, 'name' => y]
+                if ($roleData instanceof Role) {
+                    $roles[] = $roleData;
+                } elseif (is_array($roleData) && isset($roleData['id'], $roleData['name'])) {
+                    $roles[] = new Role($roleData['id'], $roleData['name']);
+                }
+            }
+        }
+
+        return new User(
+            $data['id'] ?? 0,
+            $data['fullname'] ?? '',
+            $email,
+            $data['photo'] ?? null,
+            $data['password'] ?? null,
+            $roles,
+            $data['status'] ?? 'active',
+            $data['verifiedEmail'] ?? false,
+            $data['coverPhoto'] ?? null,
+            $data['accessToken'] ?? null,
+            $data['refreshToken'] ?? null,
+            $data['bio'] ?? null,
+            $data['phone'] ?? null,
+            $data['username'] ?? null,
+            $data['cityName'] ?? null,
+            $data['countryName'] ?? null,
+            $data['countryImageUrl'] ?? null
+        );
+    }
+
+    /**
+     * Crée un utilisateur à partir d'une ligne DB (fetch)
+     *
+     * @param array $dbRow
+     * @param array $rolesDB Ligne(s) de roles depuis user_roles JOIN roles
+     * @return User
+     */
+    public static function createFromDb(array $dbRow, array $rolesDB = []): User
+    {
+        $roles = [];
+        foreach ($rolesDB as $r) {
+            $roles[] = new Role($r['id'], $r['name']);
+        }
+
+        return self::createFromArray([
+            'id' => $dbRow['id'],
+            'fullname' => $dbRow['fullname'],
+            'email' => $dbRow['email'],
+            'photo' => $dbRow['photo'] ?? null,
+            'password' => $dbRow['password'] ?? null,
+            'roles' => $roles,
+            'status' => $dbRow['status'] ?? 'active',
+            'verifiedEmail' => (bool) ($dbRow['verified_email'] ?? false),
+            'coverPhoto' => $dbRow['cover_photo'] ?? null,
+            'accessToken' => $dbRow['access_token'] ?? null,
+            'refreshToken' => $dbRow['refresh_token'] ?? null,
+            'bio' => $dbRow['bio'] ?? null,
+            'phone' => $dbRow['phone'] ?? null,
+            'username' => $dbRow['username'] ?? null,
+            'cityName' => $dbRow['city_name'] ?? null,
+            'countryName' => $dbRow['country_name'] ?? null,
+            'countryImageUrl' => $dbRow['country_image_url'] ?? null,
+        ]);
+    }
+}

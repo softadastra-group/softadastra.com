@@ -1,14 +1,64 @@
 <?php
 
-namespace Modules\User\Core\Services;
+declare(strict_types=1);
 
-use DateTime;
-use Exception;
-use Modules\User\Core\Models\JWT;
-use Modules\User\Core\Repository\UserRepository;
+namespace Modules\User\Core\Helpers;
 
-class UserHelper
+use Ivi\Core\Jwt\JWT;
+use Modules\User\Core\Repositories\UserRepository;
+
+final class UserHelper
 {
+    private const PASSWORD_ALGO = PASSWORD_BCRYPT;
+    private const PASSWORD_OPTIONS = [
+        'cost' => 12, // Ajustable selon la sécurité et la performance
+    ];
+
+    /**
+     * Hash un mot de passe pour stockage en base.
+     */
+    public static function hashPassword(string $plainPassword): string
+    {
+        return password_hash($plainPassword, self::PASSWORD_ALGO, self::PASSWORD_OPTIONS);
+    }
+
+    /**
+     * Vérifie qu'un mot de passe correspond à son hash.
+     */
+    public static function verifyPassword(string $plainPassword, string $hash): bool
+    {
+        return password_verify($plainPassword, $hash);
+    }
+
+    /**
+     * Détermine si le hash doit être rehashé (nouvel algo ou coût changé)
+     */
+    public static function needsRehash(string $hash): bool
+    {
+        return password_needs_rehash($hash, self::PASSWORD_ALGO, self::PASSWORD_OPTIONS);
+    }
+
+    /**
+     * Génère un token aléatoire sécurisé pour reset de mot de passe ou sessions.
+     */
+    public static function generateToken(int $length = 64): string
+    {
+        return bin2hex(random_bytes(intdiv($length, 2)));
+    }
+
+    /**
+     * Vérifie si un mot de passe respecte une politique minimale.
+     * Par exemple : 8+ caractères, 1 chiffre, 1 majuscule, 1 minuscule
+     */
+    public static function validatePasswordPolicy(string $password): bool
+    {
+        if (strlen($password) < 8) return false;
+        if (!preg_match('/[A-Z]/', $password)) return false;
+        if (!preg_match('/[a-z]/', $password)) return false;
+        if (!preg_match('/\d/', $password)) return false;
+        return true;
+    }
+
     static public function getProfileImage($userPhoto)
     {
         $defaultAvatar = '/public/images/profile/avatar.jpg';
@@ -34,49 +84,6 @@ class UserHelper
         return $defaultAvatar;
     }
 
-
-    static public function timeElapsed($date)
-    {
-        if (is_string($date)) {
-            $date = new \DateTime($date, new \DateTimeZone('Europe/Paris'));
-        }
-
-        if (!($date instanceof \DateTime)) {
-            return "Date invalide";
-        }
-
-        $now = new \DateTime("now", new \DateTimeZone('Europe/Paris'));
-        if ($date > $now) {
-            $diff = $now->diff($date);
-            $isFuture = true;
-        } else {
-            $diff = $date->diff($now);
-            $isFuture = false;
-        }
-        $diffInSeconds = $diff->days * 86400 + $diff->h * 3600 + $diff->i * 60 + $diff->s;
-        if ($diffInSeconds < 60) {
-            $value = $diffInSeconds;
-            $unit = "seconde" . ($value > 1 ? "s" : "");
-        } elseif ($diffInSeconds < 3600) {
-            $value = $diff->i;
-            $unit = "minute" . ($value > 1 ? "s" : "");
-        } elseif ($diffInSeconds < 86400) {
-            $value = $diff->h;
-            $unit = "heure" . ($value > 1 ? "s" : "");
-        } elseif ($diffInSeconds < 2592000) {
-            $value = $diff->days;
-            $unit = "jour" . ($value > 1 ? "s" : "");
-        } elseif ($diffInSeconds < 31536000) {
-            $value = floor($diff->days / 30);
-            $unit = "mois" . ($value > 1 ? "s" : "");
-        } else {
-            $value = $diff->y;
-            $unit = "an" . ($value > 1 ? "s" : "");
-        }
-
-        return $isFuture ? "dans $value $unit" : "il y a $value $unit";
-    }
-
     static function token($user, $validity)
     {
         $header = [
@@ -90,7 +97,7 @@ class UserHelper
             'role' => $user->getRole()
         ];
         $jwt = new JWT();
-        $token = $jwt->generate($header, $payload, SECRET, $validity);
+        $token = $jwt->generate($header, $payload, JWT_SECRET, $validity);
 
         return $token;
     }
@@ -134,24 +141,6 @@ class UserHelper
         return 'admin';
     }
 
-    static public function hashPassword($password)
-    {
-        return password_hash($password, PASSWORD_DEFAULT);
-    }
-
-    static public function verifyPassword($password, $hash)
-    {
-        return password_verify($password, $hash);
-    }
-
-    static function verify_email(UserRepository $repo, $email)
-    {
-        if ($repo->findByEmail($email)) {
-            return true;
-        }
-        return false;
-    }
-
     static function while($errors)
     {
         foreach ($errors as $field => $error) {
@@ -171,12 +160,6 @@ class UserHelper
         if (empty($_SESSION['csrf_token']) || $_SESSION['csrf_token'] !== $token) {
             throw new \Exception('Invalid CSRF token');
         }
-    }
-
-    static function redirectTo($path)
-    {
-        header('Location: ' . $path);
-        exit;
     }
 
     static function getFlashMessage()
