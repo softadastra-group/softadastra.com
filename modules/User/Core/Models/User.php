@@ -2,320 +2,338 @@
 
 namespace Modules\User\Core\Models;
 
-class User
+use Ivi\Core\ORM\Model;
+use DateTimeImmutable;
+use Modules\User\Core\ValueObjects\Email;
+use Modules\User\Core\ValueObjects\Role;
+
+class User extends Model
 {
-    private $id;
-    private $fullname;
-    private $email;
-    private $photo;
-    private $password;
-    private $role;
-    private $status;
-    private $verified_email;
-    private $cover_photo;
-    private $access_token;
-    private $refresh_token;
-    private $bio;
-    private $phone;
-    private $username;
-    private $messageCount = 0;
-    private $daily_productCount;
-    private $created_at;
-    private $updated_at;
+    private int $id;
+    private string $fullname;
+    private Email $email;
+    private ?string $photo = null;
+    private ?string $password = null;
+    private ?int $roleId = null; // rôle principal (optionnel)
+    private array $roles = []; // tous les rôles
+    private string $status = 'active';
+    private bool $verifiedEmail = false;
+    private ?string $coverPhoto = null;
+    private ?string $accessToken = null;
+    private ?string $refreshToken = null;
+    private ?string $bio = null;
+    private ?string $phone = null;
+    private ?string $username = null;
+    private int $messageCount = 0;
+    private DateTimeImmutable $createdAt;
+    private DateTimeImmutable $updatedAt;
 
-    private $city_name;
-    private $country_name;
-    private $country_image_url;
-
-    private $referred_by;
-    private $ambassador_points = 0;
-    private $productCount = 0;
-
-    private ?int $roleId = null;
-    private ?string $roleName = null;
-
+    private ?string $cityName = null;
+    private ?string $countryName = null;
+    private ?string $countryImageUrl = null;
     private array $roleNames = [];
-    public function setRoleNames(array $names): void
-    {
-        $this->roleNames = $names;
+    private int $productCount = 0;
+
+    protected static ?string $table = 'users';
+    protected static array $fillable = [
+        'fullname',
+        'email',
+        'photo',
+        'password',
+        'role_id',
+        'status',
+        'verified_email',
+        'cover_photo',
+        'access_token',
+        'refresh_token',
+        'bio',
+        'phone',
+        'username'
+    ];
+
+    public function __construct(
+        int $id,
+        string $fullname,
+        Email $email,
+        ?string $photo = null,
+        ?string $password = null,
+        array $roles = [],
+        string $status = 'active',
+        bool $verifiedEmail = false,
+        ?string $coverPhoto = null,
+        ?string $accessToken = null,
+        ?string $refreshToken = null,
+        ?string $bio = null,
+        ?string $phone = null,
+        ?string $username = null,
+        ?string $cityName = null,
+        ?string $countryName = null,
+        ?string $countryImageUrl = null
+    ) {
+        $this->id = $id;
+        $this->fullname = $fullname;
+        $this->email = $email;
+        $this->photo = $photo;
+        $this->password = $password;
+        $this->roles = $roles;
+        $this->updateRoleNames(); // met à jour roleNames et roleId principal
+        $this->status = $status;
+        $this->verifiedEmail = $verifiedEmail;
+        $this->coverPhoto = $coverPhoto;
+        $this->accessToken = $accessToken;
+        $this->refreshToken = $refreshToken;
+        $this->bio = $bio;
+        $this->phone = $phone;
+        $this->username = $username;
+        $this->cityName = $cityName;
+        $this->countryName = $countryName;
+        $this->countryImageUrl = $countryImageUrl;
+        $this->createdAt = new DateTimeImmutable();
+        $this->updatedAt = new DateTimeImmutable();
     }
+
+    // --- Gestion des rôles ---
+    public function addRole(Role $role): void
+    {
+        foreach ($this->roles as $r) {
+            if ($r->getId() === $role->getId()) {
+                return; // déjà présent
+            }
+        }
+        $this->roles[] = $role;
+        $this->updateRoleNames();
+    }
+
+    public function removeRole(Role $role): void
+    {
+        $this->roles = array_filter(
+            $this->roles,
+            fn(Role $r) => $r->getId() !== $role->getId()
+        );
+        $this->updateRoleNames();
+    }
+
+    public function hasRole(string $roleName): bool
+    {
+        foreach ($this->roles as $r) {
+            if ($r->getName() === $roleName) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function getRoles(): array
+    {
+        return $this->roles;
+    }
+
+    public function setRoles(array $roles): void
+    {
+        $this->roles = [];
+        foreach ($roles as $role) {
+            $this->addRole($role);
+        }
+    }
+
+    private function updateRoleNames(): void
+    {
+        $this->roleNames = array_map(
+            fn(Role $r) => $r->getName(),
+            $this->roles
+        );
+        // roleId = id du premier rôle (optionnel)
+        $this->roleId = $this->roles[0]->getId() ?? null;
+    }
+
+    /**
+     * Vide tous les rôles de l'utilisateur.
+     */
+    public function clearRoles(): void
+    {
+        $this->roles = [];
+        $this->updateRoleNames();
+    }
+
     public function getRoleNames(): array
     {
         return $this->roleNames;
     }
-    public function hasRole(string $name): bool
+
+    public function getVerifiedEmail(): bool
     {
-        return in_array($name, $this->roleNames, true) || $this->getRoleName() === $name;
+        return $this->verifiedEmail;
     }
 
-    public function __construct($fullname, $email, $photo = null, $password = null, $role = null, $status = null, $verified_email = 0, $cover_photo = null, $access_token = null, $refresh_token = null, $bio = null, $phone = null, $username = null)
-    {
-        $this->fullname = $fullname;
-        $this->email = $email;
-        $this->photo = $photo;
-        $this->password = $password;
-        $this->role = $role;
-        $this->status = $status;
-        $this->verified_email = $verified_email;
-        $this->cover_photo = $cover_photo;
-        $this->access_token = $access_token;
-        $this->refresh_token = $refresh_token;
-        $this->bio = $bio;
-        $this->phone = $phone;
-        $this->username = $username;
-    }
-
-    public function getId()
+    // --- Getters / Setters type-safe ---
+    public function getId(): int
     {
         return $this->id;
     }
-
-    public function setId($id)
-    {
-        $this->id = $id;
-    }
-
-    public function getFullname()
+    public function getFullname(): string
     {
         return $this->fullname;
     }
-
-    public function setFullname($fullname)
+    public function setFullname(string $fullname): void
     {
         $this->fullname = $fullname;
     }
 
-    public function getEmail()
+    public function getEmail(): Email
     {
         return $this->email;
     }
-
-    public function setEmail($email)
+    public function setEmail(Email $email): void
     {
         $this->email = $email;
     }
 
-    public function getPhoto()
+    public function getPhoto(): ?string
     {
         return $this->photo;
     }
-
-    public function setPhoto($photo)
+    public function setPhoto(?string $photo): void
     {
         $this->photo = $photo;
     }
 
-    public function getPassword()
+    public function getPassword(): ?string
     {
         return $this->password;
     }
-
-    public function setPassword($password)
+    public function setPassword(?string $password): void
     {
         $this->password = $password;
     }
 
-    public function getRole()
-    {
-        return $this->role;
-    }
-
-    public function setRole($role)
-    {
-        $this->role = $role;
-    }
-
-    public function getStatus()
+    public function getStatus(): string
     {
         return $this->status;
     }
-
-    public function setStatus($status)
+    public function setStatus(string $status): void
     {
         $this->status = $status;
     }
 
-    public function getVerifiedEmail()
+    public function isVerifiedEmail(): bool
     {
-        return $this->verified_email;
+        return $this->verifiedEmail;
+    }
+    public function markEmailVerified(): void
+    {
+        $this->verifiedEmail = true;
     }
 
-    public function setVerifiedEmail($verified_email)
+    public function getCoverPhoto(): ?string
     {
-        $this->verified_email = $verified_email;
+        return $this->coverPhoto;
+    }
+    public function setCoverPhoto(?string $coverPhoto): void
+    {
+        $this->coverPhoto = $coverPhoto;
     }
 
-    public function getCoverPhoto()
+    public function getAccessToken(): ?string
     {
-        return $this->cover_photo;
+        return $this->accessToken;
+    }
+    public function setAccessToken(?string $token): void
+    {
+        $this->accessToken = $token;
     }
 
-    public function setCoverPhoto($cover_photo)
+    public function getRefreshToken(): ?string
     {
-        $this->cover_photo = $cover_photo;
+        return $this->refreshToken;
+    }
+    public function setRefreshToken(?string $token): void
+    {
+        $this->refreshToken = $token;
     }
 
-    public function getAccessToken()
-    {
-        return $this->access_token;
-    }
-
-    public function setAccessToken($accessToken)
-    {
-        $this->access_token = $accessToken;
-    }
-
-    public function getRefreshToken()
-    {
-        return $this->refresh_token;
-    }
-
-    public function setRefreshToken($refreshToken)
-    {
-        $this->refresh_token = $refreshToken;
-    }
-
-    public function getBio()
+    public function getBio(): ?string
     {
         return $this->bio;
     }
-
-    public function setBio($bio)
+    public function setBio(?string $bio): void
     {
         $this->bio = $bio;
     }
 
-    public function getPhone()
+    public function getPhone(): ?string
     {
         return $this->phone;
     }
-
-    public function setPhone($phone)
+    public function setPhone(?string $phone): void
     {
         $this->phone = $phone;
     }
 
-    public function getUsername()
+    public function getUsername(): ?string
     {
         return $this->username;
     }
-    public function setUsername($username)
+    public function setUsername(?string $username): void
     {
         $this->username = $username;
     }
 
-    public function getMessageCount()
+    public function getMessageCount(): int
     {
         return $this->messageCount;
     }
-
-    public function setMessageCount($messageCount)
+    public function incrementMessageCount(): void
     {
-        $this->messageCount = $messageCount;
+        $this->messageCount++;
     }
 
-    public function getDailyProductCount()
+    public function getCreatedAt(): DateTimeImmutable
     {
-        return $this->daily_productCount;
+        return $this->createdAt;
     }
-    public function setDailyProductCount($daily_productCount)
+    public function getUpdatedAt(): DateTimeImmutable
     {
-        $this->daily_productCount = $daily_productCount;
+        return $this->updatedAt;
     }
-
-    public function getCreatedAt()
+    public function touchUpdatedAt(): void
     {
-        return $this->created_at;
-    }
-
-    public function setCreateAt($created_at)
-    {
-        $this->created_at = $created_at;
+        $this->updatedAt = new DateTimeImmutable();
     }
 
-    public function getUpdatedAt()
+    public function getCityName(): ?string
     {
-        return $this->updated_at;
+        return $this->cityName;
+    }
+    public function setCityName(?string $city): void
+    {
+        $this->cityName = $city;
     }
 
-    public function setUpdateAt($updated_at)
+    public function getCountryName(): ?string
     {
-        $this->updated_at = $updated_at;
+        return $this->countryName;
+    }
+    public function setCountryName(?string $country): void
+    {
+        $this->countryName = $country;
     }
 
-    public function setCityName($city_name)
+    public function getCountryImageUrl(): ?string
     {
-        $this->city_name = $city_name;
+        return $this->countryImageUrl;
+    }
+    public function setCountryImageUrl(?string $url): void
+    {
+        $this->countryImageUrl = $url;
     }
 
-    public function setCountryName($country_name)
+    public function setProductCount(int $count): void
     {
-        $this->country_name = $country_name;
+        $this->productCount = $count;
     }
 
-    public function setCountryImageUrl($country_image_url)
-    {
-        $this->country_image_url = $country_image_url;
-    }
-
-    public function getCityName()
-    {
-        return $this->city_name;
-    }
-
-    public function getCountryName()
-    {
-        return $this->country_name;
-    }
-
-    public function getCountryImageUrl()
-    {
-        return $this->country_image_url;
-    }
-
-    public function getReferredBy()
-    {
-        return $this->referred_by;
-    }
-    public function setReferredBy($referred_by)
-    {
-        $this->referred_by = $referred_by;
-    }
-
-    public function getAmbassadorPoints(): int
-    {
-        return $this->ambassador_points ?? 0;
-    }
-
-    public function setAmbassadorPoints(int $points): void
-    {
-        $this->ambassador_points = $points;
-    }
-
-    public function setProductCount(int $n): void
-    {
-        $this->productCount = $n;
-    }
     public function getProductCount(): int
     {
-        return (int)$this->productCount;
-    }
-
-    public function setRoleId(int $roleId): void
-    {
-        $this->roleId = $roleId;
-    }
-    public function getRoleId(): ?int
-    {
-        return $this->roleId;
-    }
-
-    public function setRoleName(string $roleName): void
-    {
-        $this->roleName = $roleName;
-    }
-    public function getRoleName(): ?string
-    {
-        return $this->roleName;
+        return $this->productCount;
     }
 }

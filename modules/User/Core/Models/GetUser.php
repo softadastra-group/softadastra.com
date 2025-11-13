@@ -3,7 +3,8 @@
 namespace Modules\User\Core\Models;
 
 use Exception;
-use Modules\User\Core\Repository\UserRepository;
+use Ivi\Core\Jwt\JWT;
+use Modules\User\Core\Repositories\UserRepository;
 
 class GetUser
 {
@@ -25,7 +26,7 @@ class GetUser
 
     public function validateToken()
     {
-        if (isset($this->token) && $this->jwt->isValid($this->token) && !$this->jwt->isExpired($this->token) && $this->jwt->check($this->token, SECRET)) {
+        if (isset($this->token) && $this->jwt->isValid($this->token) && !$this->jwt->isExpired($this->token) && $this->jwt->check($this->token, JWT_SECRET)) {
             return $this->jwt->getPayload($this->token);
         }
         return null;
