@@ -125,6 +125,46 @@ final class UserRepository extends Repository
         return $user;
     }
 
+    public function save(User $user): User
+    {
+        if ($user->getId()) {
+            $this->update($user);
+            return $user;
+        } else {
+            return $this->createWithRoles($user->toArray(), $user->getRoles());
+        }
+    }
+
+    /**
+     * Met à jour un champ spécifique d’un utilisateur (ex: photo, cover_photo) avec Cloudinary public_id optionnel.
+     */
+    public function updateField(int $userId, string $field, ?string $value, ?string $publicId = null): bool
+    {
+        $user = $this->findById($userId);
+        if (!$user) return false;
+
+        switch ($field) {
+            case 'photo':
+                $user->setPhoto($value);
+                $user->setPhotoPublicId($publicId);
+                break;
+            case 'cover_photo':
+                $user->setCoverPhoto($value);
+                $user->setCoverPhotoPublicId($publicId);
+                break;
+            default:
+                return false; // champ non supporté
+        }
+
+        try {
+            $this->update($user);
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+
     /**
      * Synchronise les rôles d’un utilisateur.
      *

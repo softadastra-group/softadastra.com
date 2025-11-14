@@ -1,26 +1,27 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Modules\User\Core\Services;
 
-
 use Cloudinary\Api\Upload\UploadApi;
-use Dotenv\Exception\InvalidFileException;
 use Exception;
-use Modules\User\Core\Image\PhotoHandler;
-use Modules\User\Core\Models\JWT;
+use Ivi\Core\Jwt\JWT;
+use Ivi\Core\Security\Csrf;
+use Ivi\Core\Utils\FlashMessage;
+use Modules\User\Core\Auth\AuthUser;
 use Modules\User\Core\Models\User;
-use Modules\User\Core\Repository\UserRepository;
-use Modules\User\Core\Utils\FlashMessage;
-use Modules\User\Core\Utils\JsonResponse;
-use Modules\User\Core\Utils\RedirectionHelper;
-use Modules\User\Core\Validator\UserValidator;
+use Modules\User\Core\Repositories\UserRepository;
+use Modules\User\Core\Helpers\UserHelper;
+use Ivi\Http\JsonResponse;
+use Ivi\Http\RedirectResponse;
+use Modules\User\Core\Factories\UserFactory;
+use Modules\User\Core\Image\PhotoHandler;
+use Modules\User\Core\ValueObjects\Email;
+use Modules\User\Core\ValueObjects\Role;
 
-class UserService extends Service
+class UserService extends BaseService
 {
-    private $repository;
-    private $validity = 60 * 60 * 24 * 7;
+    private UserRepository $repository;
+    private int $jwtValidity = 3600 * 24; // 24h
 
     public function __construct(UserRepository $repository)
     {
@@ -28,415 +29,56 @@ class UserService extends Service
         $this->repository = $repository;
     }
 
-    /** Sécurise et normalise le paramètre `next` (évite open-redirect). */
-    private function safeNextFromRequest(string $default = '/'): string
+    /** Login standard via AuthUser helper */
+    public function loginUser(User $user): string
     {
-        $next = $_GET['next'] ?? $_POST['next'] ?? ($_SESSION['post_auth_next'] ?? '') ?? '';
-        if (!$next) return $default;
-
-        // Chemin relatif autorisé
-        if (strpos($next, '//') === false && (substr($next, 0, 1) === '/')) {
-            return $next;
-        }
-
-        // Même origine autorisée
-        $host = $_SERVER['HTTP_HOST'] ?? '';
-        $nextHost   = parse_url($next, PHP_URL_HOST) ?? '';
-        $nextScheme = parse_url($next, PHP_URL_SCHEME) ?? '';
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        if ($nextHost === $host && ($nextScheme === '' || $nextScheme === $scheme)) {
-            return $next;
-        }
-
-        return $default;
+        return AuthUser::login($user);
     }
 
-    /** Ajoute le hash de post-login si absent (pour restauration scroll côté front). */
-    private function withAfterLoginHash(string $url): string
+    /** Logout */
+    public function logout(): void
     {
-        return (str_contains($url, '#')) ? $url : ($url . '#__sa_after_login');
+        AuthUser::logout();
     }
 
-    /** Pose session + cookie + accessToken et retourne le token. */
-    private function issueAuthForUser(User $userEntity): string
+    /** Retourne l’utilisateur connecté ou null */
+    public function currentUser(): ?User
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            @session_start();
-        }
-        session_regenerate_id(true);
-
-        // Enregistre en session quelques infos utiles
-        $_SESSION['unique_id']  = (int)$userEntity->getId();
-        $_SESSION['user_email'] = $userEntity->getEmail();
-        $_SESSION['role']       = $userEntity->getRoleName();
-        $_SESSION['roles']      = $userEntity->getRoleNames();
-
-        // Génération du token avec ton helper existant
-        $token = UserHelper::token($userEntity, $this->validity);
-
-        $userEntity->setAccessToken($token);
-        $this->repository->updateAccessToken($userEntity);
-
-        // Détection environnement
-        $host    = (string)($_SERVER['HTTP_HOST'] ?? '');
-        $isHttps = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
-            || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
-
-        $isLocal = preg_match('/^(localhost|127\.0\.0\.1)(:\d+)?$/', $host) === 1;
-
-        $cookieDomain = null;
-        if (!$isLocal && preg_match('/(^|\.)softadastra\.com$/i', $host)) {
-            $cookieDomain = '.softadastra.com';
-        }
-
-        $cookieOptions = [
-            'expires'  => time() + (int)$this->validity,
-            'path'     => '/',
-            'secure'   => $isLocal ? false : $isHttps,
-            'httponly' => true,
-            'samesite' => 'Lax', // passe à 'None' si besoin cross-site
-        ];
-        if ($cookieDomain) {
-            $cookieOptions['domain'] = $cookieDomain;
-        }
-
-        setcookie('token', $token, $cookieOptions);
-
-        return $token;
+        return AuthUser::user(null, $this->repository);
     }
 
-    /** Redirection post-auth vers `next` (sécurisé) avec hash pour le front. */
-    private function redirectAfterAuth(string $fallback = '/'): void
-    {
-        $next = $this->safeNextFromRequest($fallback);
-        // Nettoyage de l’intention si on l’avait mise en session
-        unset($_SESSION['post_auth_next']);
-        header('Location: ' . $this->withAfterLoginHash($next), true, 302);
-        exit;
-    }
-
-    /** Récupère `next` depuis `state` (Google OAuth) et le stocke en session. */
-    private function captureNextFromGoogleState(): void
-    {
-        if (empty($_GET['state'])) return;
-        $decoded = json_decode(base64_decode($_GET['state']), true) ?: [];
-        // (Optionnel) vérif CSRF si tu avais stocké un jeton lors de la création de l’URL Google
-        if (!empty($decoded['csrf']) && isset($_SESSION['google_oauth_state_csrf'])) {
-            if (!hash_equals($_SESSION['google_oauth_state_csrf'], $decoded['csrf'])) {
-                return; // CSRF invalide → on ignore
-            }
-            $_SESSION['google_oauth_state_csrf'] = null; // one-shot
-        }
-        if (!empty($decoded['next'])) {
-            $_SESSION['post_auth_next'] = $decoded['next'];
-        } elseif (!empty($_GET['next'])) {
-            $_SESSION['post_auth_next'] = $_GET['next'];
-        }
-    }
-
-    public function google($googleUser)
-    {
-        try {
-            // 1) Données Google normalisées
-            $fullname       = (string)($googleUser->name ?? '');
-            $email          = strtolower(trim((string)($googleUser->email ?? '')));
-            $photo          = (string)($googleUser->picture ?? '');
-            $verified_email = (int)($googleUser->verifiedEmail ?? 0);
-
-            if ($email === '') {
-                FlashMessage::add('error', 'Google did not return a valid email.');
-                RedirectionHelper::redirect('login');
-            }
-
-            // 2) Conserver “next” (post-auth)
-            $this->captureNextFromGoogleState();
-
-            // 3) Si l’utilisateur existe déjà → login direct
-            if ($existing = $this->repository->findByEmail($email)) {
-                return $this->loginWithGoogle($existing);
-            }
-
-            // 4) Defaults pour un nouvel utilisateur
-            $roleName = UserHelper::getRole();     // 'user'
-            $status   = UserHelper::getStatus();   // 'active' (selon ton helper)
-            $cover    = UserHelper::getCoverPhoto();
-
-            // 5) Construire une entité “tampon” en session
-            $userEntity = new User($fullname, $email, $photo, '', $roleName, $status, $verified_email, $cover);
-            if (method_exists($userEntity, 'setRoleName')) {
-                $userEntity->setRoleName($roleName); // <- important pour resolveRoleId()
-            }
-            // (optionnel) Injecter le rôle principal dans la liste multi-rôles
-            if (method_exists($userEntity, 'setRoleNames')) {
-                $userEntity->setRoleNames([$roleName]);
-            }
-            $userEntity->setStatus('active');
-
-            // 6) Stocker le nécessaire pour la finalisation
-            $_SESSION['user_registration'] = [
-                'fullname'       => $userEntity->getFullname(),
-                'email'          => $userEntity->getEmail(),
-                'photo'          => $userEntity->getPhoto(),
-                'role_name'      => $userEntity->getRoleName() ?? $roleName,
-                'status'         => $userEntity->getStatus(),
-                'verified_email' => (int)$userEntity->getVerifiedEmail(),
-                'cover_photo'    => $userEntity->getCoverPhoto(),
-                'bio'            => $userEntity->getBio(),
-            ];
-
-            // 7) Rediriger vers la finalisation
-            RedirectionHelper::redirect('finalize-registration');
-        } catch (Exception $e) {
-            FlashMessage::add('error', 'An error has occurred');
-            RedirectionHelper::redirect('login');
-        }
-    }
-
-    public function finalizeRegistrationPOST(array $post): void
-    {
-        try {
-            // 1) CSRF
-            $csrfSession = $_SESSION['csrf_token'] ?? '';
-            $csrfPost    = (string)($post['csrf_token'] ?? '');
-            if (!$csrfPost || !hash_equals($csrfSession, $csrfPost)) {
-                JsonResponse::badRequest('Invalid CSRF token.');
-            }
-
-            // 2) Données en session
-            $userData = $_SESSION['user_registration'] ?? null;
-            if (!$userData) {
-                JsonResponse::json(['success' => false, 'error' => 'Please try again.', 'redirect' => '/login'], 400);
-            }
-
-            // 3) Téléphone
-            $rawPhone     = (string)($post['phone_number'] ?? ($post['phone'] ?? ''));
-            $phone_number = $this->normalizeE164($rawPhone);
-
-            // 4) Defaults (role/status/cover/bio)
-            $roleName = (string)($userData['role_name'] ?? UserHelper::getRole()); // 'user'
-            $status   = UserHelper::getStatus();
-            $cover    = UserHelper::getCoverPhoto();
-            $bio      = UserHelper::getBio();
-
-            // 5) Construire l’entité finale (Google = pas de password local)
-            $userEntity = new User(
-                (string)($userData['fullname'] ?? ''),
-                (string)($userData['email']    ?? ''),
-                (string)($userData['photo']    ?? ''),
-                '',                    // pas de password
-                $roleName,             // nom de rôle
-                $status,
-                (int)($userData['verified_email'] ?? 0),
-                $cover
-            );
-            // Rôle principal (important pour resolveRoleId())
-            if (method_exists($userEntity, 'setRoleName')) {
-                $userEntity->setRoleName($roleName);
-            }
-            // Multi-rôles : injecter au moins le principal
-            if (method_exists($userEntity, 'setRoleNames')) {
-                $userEntity->setRoleNames([$roleName]);
-            }
-
-            $userEntity->setBio($bio);
-            $userEntity->setPhone($phone_number);
-
-            // 6) Validation téléphone
-            if ($phoneError = UserValidator::validatePhoneNumber($userEntity->getPhone())) {
-                JsonResponse::validationError(['phone_number' => $phoneError]);
-            }
-
-            // 7) Username + referral
-            $userName = UserHelper::generateUsername($userEntity->getFullname(), $this->repository);
-            $userEntity->setUsername($userName);
-
-            $ref = trim(strtolower($_SESSION['referral_username'] ?? ''));
-            if ($ref && ($referrer = $this->repository->findOneByUsername($ref))) {
-                $userEntity->setReferredBy($referrer->getId());
-            }
-
-            // 8) Persist (save() traduira role_name → role_id, plus user_roles)
-            $user = $this->repository->save($userEntity);
-
-            // 9) Nettoyage du flow
-            unset($_SESSION['user_registration'], $_SESSION['referral_username']);
-
-            // 10) Auth + retour
-            $token = $this->issueAuthForUser($user);
-            $lastName = UserHelper::lastName($userEntity->getFullname());
-            FlashMessage::add('success', 'Welcome, ' . $lastName . ', to your account.');
-
-            JsonResponse::created(
-                [
-                    'token'    => $token,
-                    'redirect' => $this->withAfterLoginHash($this->safeNextFromRequest('/')),
-                ],
-                'Account created successfully.'
-            );
-        } catch (\Throwable $e) {
-            error_log('FinalizeRegistration error: ' . $e->getMessage());
-            JsonResponse::serverError('An error occurred.');
-        }
-    }
-
-    /** même helper que précédemment (ou place-le en utilitaire partagé) */
-    private function normalizeE164(string $raw): string
-    {
-        $v = trim((string)$raw);
-        $v = preg_replace('/[^\d+]/', '', $v);
-
-        if ($v === '') return '';
-
-        // Déjà normalisé
-        if (strpos($v, '+256') === 0) {
-            $d = preg_replace('/\D/', '', substr($v, 4));
-            return '+256' . substr($d, 0, 9);
-        }
-        if (strpos($v, '+243') === 0) {
-            $d = preg_replace('/\D/', '', substr($v, 4));
-            return '+243' . substr($d, 0, 9);
-        }
-
-        // Uganda variantes
-        if (strpos($v, '256') === 0) {
-            $d = preg_replace('/\D/', '', substr($v, 3));
-            return '+256' . substr($d, 0, 9);
-        }
-        if (strpos($v, '07') === 0) {
-            $d = preg_replace('/\D/', '', substr($v, 1));
-            return '+256' . substr($d, 0, 9);
-        }
-        if (preg_match('/^7\d{8,}$/', $v)) {
-            $d = preg_replace('/\D/', '', $v);
-            return '+256' . substr($d, 0, 9);
-        }
-
-        // DRC variantes
-        if (strpos($v, '243') === 0) {
-            $d = preg_replace('/\D/', '', substr($v, 3));
-            return '+243' . substr($d, 0, 9);
-        }
-        if (preg_match('/^0[89]\d+$/', $v)) {
-            $d = preg_replace('/\D/', '', substr($v, 1));
-            return '+243' . substr($d, 0, 9);
-        }
-        if (preg_match('/^[89]\d+$/', $v)) {
-            $d = preg_replace('/\D/', '', $v);
-            return '+243' . substr($d, 0, 9);
-        }
-
-        return $v; // fallback
-    }
-
-    private function roleNameOf($user): ?string
-    {
-        if (method_exists($user, 'getRoleName') && $user->getRoleName()) {
-            return $user->getRoleName();
-        }
-        if (method_exists($user, 'getRole') && $user->getRole()) {
-            return $user->getRole(); // compat legacy
-        }
-        if (method_exists($user, 'getRoleNames')) {
-            $all = (array)$user->getRoleNames();
-            if (!empty($all)) {
-                return (string)$all[0]; // premier rôle comme “principal”
-            }
-        }
-        return 'user'; // fallback safe
-    }
-
-    private function syncAllRolesIfAny($sourceUser, $targetUser): void
-    {
-        if (method_exists($sourceUser, 'getRoleNames') && method_exists($targetUser, 'setRoleNames')) {
-            $roles = array_values(array_filter(array_map('trim', (array)$sourceUser->getRoleNames())));
-            if (!empty($roles)) {
-                $targetUser->setRoleNames($roles);
-            }
-        }
-        // s'assurer que le principal est dans la liste
-        if (method_exists($targetUser, 'getRoleName') && method_exists($targetUser, 'getRoleNames') && method_exists($targetUser, 'setRoleNames')) {
-            $primary = $targetUser->getRoleName();
-            if ($primary) {
-                $all = $targetUser->getRoleNames();
-                if (!in_array($primary, $all, true)) {
-                    $all[] = $primary;
-                    $targetUser->setRoleNames($all);
-                }
-            }
-        }
-    }
-
-    public function loginWithGoogle($user)
-    {
-        try {
-            $roleName = $this->roleNameOf($user);
-
-            $userEntity = new User(
-                $user->getFullname(),
-                $user->getEmail(),
-                $user->getPhoto(),
-                $user->getPassword(),
-                $roleName,
-                $user->getStatus(),
-                $user->getVerifiedEmail(),
-                $user->getCoverPhoto()
-            );
-            $userEntity->setId($user->getId());
-            $userEntity->setStatus('active');
-
-            if (method_exists($user, 'getRoleId') && null !== $user->getRoleId()) {
-                $userEntity->setRoleId((int)$user->getRoleId());
-            }
-            if ($roleName && method_exists($userEntity, 'setRoleName')) {
-                $userEntity->setRoleName($roleName);
-            }
-
-            // ✅ multi-rôles (si présents)
-            $this->syncAllRolesIfAny($user, $userEntity);
-
-            // Auth (si tu veux inclure tous les rôles dans le payload, adapte issueAuthForUser)
-            $token = $this->issueAuthForUser($userEntity);
-
-            $lastName = $user->getUsername();
-            FlashMessage::add('success', "welcome, $lastName !");
-
-            $this->redirectAfterAuth($this->safeNextFromRequest('/'));
-        } catch (Exception $e) {
-            FlashMessage::add('error', 'An error occurred.');
-            RedirectionHelper::redirect('login');
-        }
-    }
-
-    public function login($p_email, $p_password): void
+    /** Login via email/password avec gestion des tentatives */
+    public function loginWithCredentials(string $email, string $password): void
     {
         $lockKey = null;
 
         try {
-            $email    = strtolower(trim((string)($p_email ?? '')));
-            $password = trim((string)($p_password ?? ''));
+            $email = strtolower(trim($email));
+            $password = trim($password);
+
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                JsonResponse::badRequest('Invalid email format.');
+                (new JsonResponse(['error' => 'Invalid email format.'], 400))->send();
             }
 
             $lockKey = 'login_lock_' . md5($email);
             $this->repository->acquireLock($lockKey);
 
-            $failedData = $this->repository->getFailedAttemptsData($email);
-            $attempts   = (int)($failedData['failed_attempts'] ?? 0);
-            $lastFailed = $failedData['last_failed_login'] ?? null;
+            $failedData = $this->getFailedAttempts($email);
+            $attempts = $failedData['failed_attempts'];
+            $lastFailed = $failedData['last_failed_login'];
 
             $BLOCK_SECONDS = 600;
             if ($attempts >= 5) {
                 $elapsed = $lastFailed ? (time() - strtotime($lastFailed)) : 0;
                 if ($elapsed < $BLOCK_SECONDS) {
                     $remainingMin = (int)ceil(($BLOCK_SECONDS - $elapsed) / 60);
-                    JsonResponse::json([
+                    (new JsonResponse([
                         'success'   => false,
                         'error'     => "Account locked. Try again in {$remainingMin} minute(s).",
                         'blocked'   => true,
                         'remaining' => $remainingMin,
                         'attempts'  => $attempts,
-                    ], 429);
+                    ], 429))->send();
                 } else {
                     $this->repository->resetFailedAttempts($email);
                     $attempts = 0;
@@ -449,72 +91,31 @@ class UserService extends Service
             }
 
             $user = $this->repository->findByEmail($email);
-            if (!$user) {
+            if (!$user || !$user->getPassword() || !UserHelper::verifyPassword($password, $user->getPassword())) {
                 $this->repository->incrementFailedAttempts($email);
-                JsonResponse::unauthorized('Incorrect email or password.');
-            }
-
-            if (!$user->getPassword()) {
-                $this->repository->incrementFailedAttempts($email);
-                JsonResponse::badRequest('This account uses Google. Please sign in with Google.');
-            }
-
-            if (!UserHelper::verifyPassword($password, $user->getPassword())) {
-                $this->repository->incrementFailedAttempts($email);
-                JsonResponse::unauthorized('Incorrect email or password.');
+                (new JsonResponse(['error' => 'Incorrect email or password.'], 401))->send();
             }
 
             $this->repository->resetFailedAttempts($email);
 
-            $roleName = $this->roleNameOf($user);
+            $token = $this->issueAuthForUser($user);
 
-            $userEntity = new User(
-                $user->getFullname(),
-                $user->getEmail(),
-                $user->getPhoto(),
-                $user->getPassword(),
-                $roleName,
-                $user->getStatus(),
-                $user->getVerifiedEmail(),
-                $user->getCoverPhoto()
-            );
-            $userEntity->setId($user->getId());
-            $userEntity->setStatus('active');
+            FlashMessage::add('success', "Welcome, {$user->getUsername()}!");
 
-            if (method_exists($user, 'getRoleId') && null !== $user->getRoleId()) {
-                $userEntity->setRoleId((int)$user->getRoleId());
-            }
-            if ($roleName && method_exists($userEntity, 'setRoleName')) {
-                $userEntity->setRoleName($roleName);
-            }
+            $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/user/dashboard'));
 
-            // ✅ multi-rôles (si présents)
-            $this->syncAllRolesIfAny($user, $userEntity);
-
-            $token = $this->issueAuthForUser($userEntity);
-
-            $lastName = $user->getUsername();
-            FlashMessage::add('success', "Welcome, {$lastName}!");
-
-            $redirect = $this->withAfterLoginHash(
-                $this->safeNextFromRequest('/user/dashboard')
-            );
-
-            JsonResponse::ok(
-                [
-                    'token' => $token,
-                    'user'  => [
-                        'id'       => (int)$user->getId(),
-                        'email'    => $user->getEmail(),
-                        'username' => $user->getUsername(),
-                    ],
-                    'redirect' => $redirect,
+            (new JsonResponse([
+                'token'    => $token,
+                'user'     => [
+                    'id'       => (int)$user->getId(),
+                    'email'    => $user->getEmail(),
+                    'username' => $user->getUsername(),
                 ],
-                'Login successful.'
-            );
+                'redirect' => $redirect,
+            ], 200))->send();
         } catch (\Throwable $e) {
-            error_log('Erreur de connexion: ' . $e->getMessage());
-            JsonResponse::serverError('An unexpected error occurred.');
+            error_log('Login error: ' . $e->getMessage());
+            (new JsonResponse(['error' => 'An unexpected error occurred.'], 500))->send();
         } finally {
             if ($lockKey) {
                 $this->repository->releaseLock($lockKey);
@@ -522,95 +123,389 @@ class UserService extends Service
         }
     }
 
-    public function register($fullname, $email, $password, $phone_number): void
+    /** Login via Google OAuth (entrée depuis callback Google) */
+    public function loginWithGoogleOAuth(object $googleUser): void
+    {
+        try {
+            // 1️⃣ Capture et sécurise le "next" depuis le state OAuth Google
+            $this->captureNextFromGoogleState();
+
+            // 2️⃣ Validation de l'email
+            $email = strtolower(trim((string)($googleUser->email ?? '')));
+            if (!$email) {
+                FlashMessage::add('error', 'Google did not return a valid email.');
+                RedirectResponse::to('/login')->send();
+            }
+
+            // 3️⃣ Vérifie si l'utilisateur existe
+            $existingUser = $this->repository->findByEmail($email);
+            if ($existingUser) {
+                $this->issueAuthForUser($existingUser);
+                $next = $this->safeNextFromRequest('/');
+                RedirectResponse::to($this->withAfterLoginHash($next))->send();
+            }
+
+            // 4️⃣ Crée un nouvel utilisateur si nécessaire
+            $userData = [
+                'fullname'      => $googleUser->name ?? '',
+                'email'         => $email,
+                'photo'         => $googleUser->picture ?? null,
+                'password'      => null,
+                'status'        => 'active',
+                'verifiedEmail' => (bool)($googleUser->verifiedEmail ?? false),
+                'coverPhoto'    => 'cover.jpg',
+            ];
+
+            $roles = [new Role(1, 'user')]; // rôle par défaut
+            $newUser = $this->repository->createWithRoles($userData, $roles);
+
+            // 5️⃣ Authentification + création session/JWT
+            $this->issueAuthForUser($newUser);
+
+            // 6️⃣ Redirection sécurisée vers finalize-registration
+            $next = $this->safeNextFromRequest('/finalize-registration');
+            RedirectResponse::to($this->withAfterLoginHash($next))->send();
+        } catch (\Throwable $e) {
+            error_log('Google OAuth login error: ' . $e->getMessage());
+            FlashMessage::add('error', 'An error occurred during Google login.');
+            RedirectResponse::to('/login')->send();
+        }
+    }
+
+    public function finalizeRegistration(array $post): void
+    {
+        try {
+            $csrfSession = $_SESSION['csrf_token'] ?? '';
+            $csrfPost = (string)($post['csrf_token'] ?? '');
+            if (!$csrfPost || !hash_equals($csrfSession, $csrfPost)) {
+                (new JsonResponse(['error' => 'Invalid CSRF token.'], 400))->send();
+            }
+
+            $sessionData = $_SESSION['user_registration'] ?? null;
+            if (!$sessionData) {
+                (new JsonResponse([
+                    'success' => false,
+                    'error' => 'Please try again.',
+                    'redirect' => '/login'
+                ], 400))->send();
+            }
+
+            $phone = $this->normalizeE164((string)($post['phone_number'] ?? $post['phone'] ?? ''));
+
+            $userEntity = UserFactory::createFromArray([
+                'fullname'      => $sessionData['fullname'] ?? '',
+                'email'         => $sessionData['email'] ?? '',
+                'photo'         => $sessionData['photo'] ?? null,
+                'password'      => '',
+                'roles'         => [UserHelper::defaultRole()],
+                'status'        => UserHelper::defaultStatus(),
+                'verifiedEmail' => (int)($sessionData['verified_email'] ?? 0),
+                'coverPhoto'    => UserHelper::defaultCover(),
+                'bio'           => UserHelper::defaultBio(),
+                'phone'         => $phone,
+            ]);
+
+            if ($phoneError = UserValidator::validatePhoneNumber($userEntity->getPhone())) {
+                (new JsonResponse(['phone_number' => $phoneError], 422))->send();
+            }
+
+            $username = UserHelper::generateUsername($userEntity->getFullname(), $this->repository);
+            $userEntity->setUsername($username);
+
+            $savedUser = $this->repository->save($userEntity);
+            unset($_SESSION['user_registration'], $_SESSION['referral_username']);
+
+            $token = $this->issueAuthForUser($savedUser);
+            FlashMessage::add('success', 'Welcome, ' . UserHelper::lastName($savedUser->getFullname()) . '!');
+
+            (new JsonResponse([
+                'token' => $token,
+                'redirect' => $this->withAfterLoginHash($this->safeNextFromRequest('/'))
+            ], 201))->send();
+        } catch (\Throwable $e) {
+            error_log('FinalizeRegistration error: ' . $e->getMessage());
+            (new JsonResponse(['error' => 'An error occurred.'], 500))->send();
+        }
+    }
+
+    public function loginWithGoogle(object $googleUser): void
+    {
+        try {
+            // 1️⃣ Normalisation email
+            $emailStr = strtolower(trim((string)($googleUser->email ?? '')));
+            if (!$emailStr) {
+                FlashMessage::add('error', 'Google did not return a valid email.');
+                RedirectResponse::to('/login')->send();
+            }
+
+            // 2️⃣ Vérifie si l'utilisateur existe déjà
+            $existingUser = $this->repository->findByEmail($emailStr);
+            if ($existingUser) {
+                $token = $this->issueAuthForUser($existingUser);
+                FlashMessage::add('success', 'Welcome back, ' . $existingUser->getUsername() . '!');
+                RedirectResponse::to($this->safeNextFromRequest('/'))->send();
+            }
+
+            // 3️⃣ Crée l'utilisateur via UserFactory
+            $userData = [
+                'fullname'       => $googleUser->name ?? '',
+                'email'          => $emailStr,
+                'photo'          => $googleUser->picture ?? null,
+                'password'       => null,
+                'roles'          => [UserHelper::defaultRole()],
+                'status'         => 'active',
+                'verifiedEmail'  => (bool)($googleUser->verifiedEmail ?? false),
+                'coverPhoto'     => 'cover.jpg',
+            ];
+
+            $userEntity = UserFactory::createFromArray($userData);
+
+            // 4️⃣ Persistance via repository
+            $savedUser = $this->repository->save($userEntity);
+
+            // 5️⃣ Auth + JWT
+            $token = $this->issueAuthForUser($savedUser);
+            FlashMessage::add('success', 'Welcome, ' . $savedUser->getUsername() . '!');
+
+            // 6️⃣ Redirection sécurisée
+            RedirectResponse::to($this->safeNextFromRequest('/finalize-registration'))->send();
+        } catch (\Throwable $e) {
+            error_log('LoginWithGoogle error: ' . $e->getMessage());
+            FlashMessage::add('error', 'An unexpected error occurred.');
+            RedirectResponse::to('/login')->send();
+        }
+    }
+
+    // === Helpers privés ===
+
+    /**
+     * Capture et sécurise le paramètre `next` depuis le state Google OAuth
+     */
+    private function captureNextFromGoogleState(): void
+    {
+        $state = $_GET['state'] ?? null;
+        if (!$state) {
+            return;
+        }
+
+        $decoded = json_decode(base64_decode($state), true) ?: [];
+
+        // Vérifie le token CSRF stocké en session
+        if (!empty($decoded['csrf']) && !empty($_SESSION['google_oauth_state_csrf'])) {
+            if (!hash_equals($_SESSION['google_oauth_state_csrf'], $decoded['csrf'])) {
+                return; // CSRF invalide → on ignore
+            }
+            $_SESSION['google_oauth_state_csrf'] = null; // supprime le token
+        }
+
+        // Stocke le next dans la session pour redirection après login
+        if (!empty($decoded['next'])) {
+            $_SESSION['post_auth_next'] = $decoded['next'];
+        } elseif (!empty($_GET['next'])) {
+            $_SESSION['post_auth_next'] = $_GET['next'];
+        }
+    }
+
+    /** Récupère tentatives depuis DB */
+    private function getFailedAttempts(string $email): array
+    {
+        $userRow = User::query()->where('email = ?', $email)->first();
+        $loginRow = User::query('login_attempts')->where('email = ?', $email)->first();
+
+        return [
+            'failed_attempts' => (int)($loginRow['failed_attempts'] ?? $userRow['failed_attempts'] ?? 0),
+            'last_failed_login' => $loginRow['last_failed_login'] ?? $userRow['last_failed_login'] ?? null,
+        ];
+    }
+
+    /** Crée session + JWT pour un utilisateur */
+    private function issueAuthForUser(User $user): string
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        session_regenerate_id(true);
+
+        $_SESSION['unique_id']  = (int)$user->getId();
+        $_SESSION['user_email'] = $user->getEmail();
+        $_SESSION['roles']      = $user->getRoleNames() ?? ['user'];
+
+        $token = UserHelper::generateJwt($user, $this->jwtValidity);
+
+        $user->setAccessToken($token);
+        $this->repository->updateAccessToken($user);
+
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? 80) == 443;
+        $isLocal = preg_match('/^(localhost|127\.0\.0\.1)(:\d+)?$/', $host) === 1;
+
+        $cookieOptions = [
+            'expires'  => time() + $this->jwtValidity,
+            'path'     => '/',
+            'secure'   => !$isLocal && $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ];
+
+        if (!$isLocal && preg_match('/(^|\.)softadastra\.com$/i', $host)) {
+            $cookieOptions['domain'] = '.softadastra.com';
+        }
+
+        setcookie('token', $token, $cookieOptions);
+
+        return $token;
+    }
+
+    /** Normalise et sécurise le paramètre `next` */
+    private function safeNextFromRequest(string $default = '/'): string
+    {
+        $next = $_GET['next'] ?? $_POST['next'] ?? ($_SESSION['post_auth_next'] ?? '');
+        if (!$next) return $default;
+
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+        $nextHost   = parse_url($next, PHP_URL_HOST) ?? '';
+        $nextScheme = parse_url($next, PHP_URL_SCHEME) ?? '';
+
+        if ((strpos($next, '//') === false && str_starts_with($next, '/')) ||
+            ($nextHost === $host && ($nextScheme === '' || $nextScheme === $scheme))
+        ) {
+            return $next;
+        }
+
+        return $default;
+    }
+
+    /** Ajoute un hash #__sa_after_login pour scroll/restoration front */
+    private function withAfterLoginHash(string $url): string
+    {
+        return str_contains($url, '#') ? $url : ($url . '#__sa_after_login');
+    }
+
+    /** Normalisation du téléphone en E.164 pour UG & DRC */
+    private function normalizeE164(string $raw): string
+    {
+        $v = preg_replace('/[^\d+]/', '', trim($raw));
+        if ($v === '') return '';
+
+        // Uganda
+        if (preg_match('/^(?:\+256|256|0?7)(\d{8})$/', $v, $m)) {
+            return '+256' . $m[1];
+        }
+        // DRC
+        if (preg_match('/^(?:\+243|243|0?[89])(\d{8})$/', $v, $m)) {
+            return '+243' . $m[1];
+        }
+
+        return $v;
+    }
+
+    /** Retourne le rôle principal d'un user ou 'user' par défaut */
+    private function roleNameOf($user): string
+    {
+        if (method_exists($user, 'getRoleName') && $user->getRoleName()) return $user->getRoleName();
+        if (method_exists($user, 'getRole') && $user->getRole()) return $user->getRole();
+        if (method_exists($user, 'getRoleNames')) {
+            $all = (array)$user->getRoleNames();
+            return $all[0] ?? 'user';
+        }
+        return 'user';
+    }
+
+    /** Synchronise tous les rôles entre source et target, en incluant le principal */
+    private function syncAllRolesIfAny($sourceUser, $targetUser): void
+    {
+        if (method_exists($sourceUser, 'getRoleNames') && method_exists($targetUser, 'setRoleNames')) {
+            $roles = array_values(array_filter((array)$sourceUser->getRoleNames()));
+            if (!empty($roles)) $targetUser->setRoleNames($roles);
+        }
+        if (method_exists($targetUser, 'getRoleName') && method_exists($targetUser, 'getRoleNames') && method_exists($targetUser, 'setRoleNames')) {
+            $primary = $targetUser->getRoleName();
+            if ($primary) {
+                $all = $targetUser->getRoleNames();
+                if (!in_array($primary, $all, true)) {
+                    $all[] = $primary;
+                    $targetUser->setRoleNames($all);
+                }
+            }
+        }
+    }
+
+    public function register(string $fullname, string $email, string $password, string $phone_number): void
     {
         try {
             // ---- 1) Normalisation entrée
-            $fullname      = trim((string)($fullname ?? ''));
-            $email         = strtolower(trim((string)($email ?? '')));
-            $passwordPlain = trim((string)($password ?? ''));
-            $phone_number  = trim((string)($phone_number ?? ''));
+            $fullname = trim($fullname);
+            $email = strtolower(trim($email));
+            $passwordPlain = trim($password);
+            $phone_number = trim($phone_number);
 
-            // ---- 2) Garde-fous rapides
+            // ---- 2) Validation rapide
             $earlyErrors = [];
-            if ($fullname === '') {
-                $earlyErrors['fullname'] = 'Full name is required.';
-            }
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $earlyErrors['email'] = 'A valid email address is required.';
-            }
-            if ($err = UserValidator::validatePassword($passwordPlain)) {
-                $earlyErrors['password'] = $err;
-            }
+            if ($fullname === '') $earlyErrors['fullname'] = 'Full name is required.';
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) $earlyErrors['email'] = 'A valid email address is required.';
+            if ($err = UserValidator::validatePassword($passwordPlain)) $earlyErrors['password'] = $err;
+
             if (!empty($earlyErrors)) {
-                JsonResponse::validationError($earlyErrors);
+                (new JsonResponse(['errors' => $earlyErrors], 400))->send();
                 return;
             }
 
             // ---- 3) Unicité email
             if ($this->repository->findByEmail($email)) {
-                JsonResponse::conflict('This email is already taken.');
+                (new JsonResponse(['error' => 'This email is already taken.'], 409))->send();
                 return;
             }
 
-            // ---- 4) Defaults / helpers
-            $photo          = UserHelper::getPhoto();
-            $roleName       = UserHelper::getRole();        // ex: 'user'
-            $status         = UserHelper::getStatus();
-            $verified_email = UserHelper::getVerifiedEmail();
-            $cover          = UserHelper::getCoverPhoto();
-            $bio            = UserHelper::getBio();
+            // ---- 4) Création entité utilisateur via UserFactory
+            $userData = [
+                'fullname'       => $fullname,
+                'email'          => $email,
+                'photo'          => UserHelper::getProfileImage($photo ?? null),
+                'password'       => UserHelper::hashPassword($passwordPlain),
+                'roles'          => [UserHelper::defaultRole()],
+                'status'         => UserHelper::defaultStatus(),
+                'verifiedEmail'  => false,
+                'coverPhoto'     => UserHelper::defaultCover(),
+                'bio'            => UserHelper::defaultBio(),
+                'phone'          => $phone_number,
+            ];
 
-            // ---- 5) Entité (password en clair ici, hash plus bas)
-            $userEntity = new User($fullname, $email, $photo, $passwordPlain, $roleName, $status, $verified_email, $cover);
+            $userEntity = UserFactory::createFromArray($userData);
 
-            // ✅ Important pour la migration: renseigner roleName + roleNames
-            if (method_exists($userEntity, 'setRoleName')) {
-                $userEntity->setRoleName($roleName);
-            }
-            if (method_exists($userEntity, 'setRoleNames')) {
-                // On initialise la liste avec le rôle principal
-                $userEntity->setRoleNames([$roleName]);
-            }
-
-            $userEntity->setBio($bio);
-            $userEntity->setPhone($phone_number);
-
-            // ---- 6) Validation métier complète
-            if ($errors = UserValidator::validate($userEntity)) {
-                JsonResponse::validationError((array)$errors);
+            // ---- 5) Validation métier complète
+            $validator = new UserValidator($this->repository); // instanciation
+            if ($errors = $validator->validate($userEntity)) {
+                (new JsonResponse(['errors' => (array)$errors], 422))->send();
                 return;
             }
 
-            // ---- 7) Statut + hash + nom formaté
-            $userEntity->setStatus('active');
-            $userEntity->setPassword(UserHelper::hashPassword($passwordPlain));
+            // ---- 6) Nom formaté + username unique
             $userEntity->setFullname(UserHelper::formatFullName($userEntity->getFullname()));
+            $userEntity->setUsername(UserHelper::generateUsername($userEntity->getFullname(), $this->repository));
 
-            // ---- 8) Username unique
-            $username = UserHelper::generateUsername($userEntity->getFullname(), $this->repository);
-            $userEntity->setUsername($username);
+            // ---- 7) Persistance via repository
+            $savedUser = $this->repository->save($userEntity);
 
-            // ---- 9) Persistance
-            // (Le repository traduira role_name -> role_id via resolveRoleId()
-            //  et insérera user_roles (N:N) en miroir.)
-            $user = $this->repository->save($userEntity);
+            // ---- 8) Auth / token
+            $token = $this->issueAuthForUser($savedUser);
 
-            // ---- 10) Auth / token
-            $token = $this->issueAuthForUser($user);
-
-            // ---- 11) Flash + redirect
-            $lastName = UserHelper::lastName($user->getFullname());
-            FlashMessage::add('success', 'Welcome, ' . $lastName . ', to your account.');
+            // ---- 9) Flash + redirect
+            FlashMessage::add('success', 'Welcome, ' . UserHelper::lastName($savedUser->getFullname()) . ', to your account.');
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/'));
 
-            // ---- 12) Réponse 201
-            JsonResponse::created(
-                ['token' => $token, 'redirect' => $redirect],
-                'Account created successfully.'
-            );
+            // ---- 10) Réponse JSON 201
+            (new JsonResponse([
+                'token'    => $token,
+                'redirect' => $redirect,
+                'message'  => 'Account created successfully.'
+            ], 201))->send();
         } catch (\Throwable $e) {
-            JsonResponse::serverError('An error occurred.', ['reason' => $e->getMessage()]);
+            (new JsonResponse([
+                'error'  => 'An error occurred.',
+                'reason' => $e->getMessage()
+            ], 500))->send();
         }
     }
 
@@ -619,19 +514,19 @@ class UserService extends Service
         // 1) Auth
         $user = $this->getUserEntity();
         if (!$user || !$user->getId()) {
-            JsonResponse::unauthorized('You must be logged in.');
+            (new JsonResponse(['error' => 'You must be logged in.'], 401))->send();
         }
-        $userId = (int) $user->getId();
+        $userId = (int)$user->getId();
 
         // 2) Identifier le champ visé (on n’accepte qu’un seul à la fois)
         $hasPhoto = isset($files['photo']) && is_array($files['photo']);
         $hasCover = isset($files['cover_photo']) && is_array($files['cover_photo']);
 
         if (!$hasPhoto && !$hasCover) {
-            JsonResponse::badRequest('No image was uploaded.');
+            (new JsonResponse(['error' => 'No image was uploaded.'], 400))->send();
         }
         if ($hasPhoto && $hasCover) {
-            JsonResponse::badRequest('Please upload either "photo" or "cover_photo", not both.');
+            (new JsonResponse(['error' => 'Please upload either "photo" or "cover_photo", not both.'], 400))->send();
         }
 
         $field     = $hasPhoto ? 'photo' : 'cover_photo';
@@ -651,21 +546,21 @@ class UserService extends Service
                 UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the file upload.',
             ];
             $msg = $map[$file['error']] ?? 'Upload error.';
-            JsonResponse::badRequest($msg);
+            (new JsonResponse(['error' => $msg], 400))->send();
         }
 
         // 4) Validation basique (taille + MIME)
         $maxBytes = 5 * 1024 * 1024; // 5 Mo
         if (!isset($file['size']) || $file['size'] <= 0) {
-            JsonResponse::badRequest('Empty file.');
+            (new JsonResponse(['error' => 'Empty file.'], 400))->send();
         }
         if ($file['size'] > $maxBytes) {
-            JsonResponse::json(['success' => false, 'error' => 'File too large. Max 5 MB.'], 413);
+            (new JsonResponse(['error' => 'File too large. Max 5 MB.'], 413))->send();
         }
 
         $tmpPath = $file['tmp_name'] ?? null;
         if (!$tmpPath || !is_uploaded_file($tmpPath)) {
-            JsonResponse::badRequest('Invalid temporary file.');
+            (new JsonResponse(['error' => 'Invalid temporary file.'], 400))->send();
         }
 
         $finfo = @finfo_open(FILEINFO_MIME_TYPE);
@@ -674,7 +569,7 @@ class UserService extends Service
 
         $allowed = ['image/jpeg', 'image/png', 'image/webp'];
         if (!$mime || !in_array($mime, $allowed, true)) {
-            JsonResponse::badRequest('Unsupported image type. Allowed: JPG, PNG, WEBP.');
+            (new JsonResponse(['error' => 'Unsupported image type. Allowed: JPG, PNG, WEBP.'], 400))->send();
         }
 
         // 5) Essayer Cloudinary
@@ -712,7 +607,7 @@ class UserService extends Service
             $savedPid = $result['public_id'] ?? null;
 
             if (!$savedUrl || !$savedPid) {
-                throw new InvalidFileException('Cloudinary upload failed.');
+                throw new Exception('Cloudinary upload failed.');
             }
         } catch (\Throwable $e) {
             // 6) Fallback local
@@ -721,165 +616,241 @@ class UserService extends Service
                 $savedUrl = '/' . ltrim($filename, '/'); // chemin relatif pour le site
                 $savedPid = null;
             } catch (\Throwable $ex) {
-                JsonResponse::serverError('Image upload failed on both Cloudinary and local.', [
+                (new JsonResponse([
+                    'error' => 'Image upload failed on both Cloudinary and local.',
                     'cloudinary' => $e->getMessage(),
-                    'local'      => $ex->getMessage()
-                ]);
+                    'local' => $ex->getMessage()
+                ], 500))->send();
             }
         }
 
         // 7) Persistance en BDD
         $ok = $this->repository->updateField($userId, $field, $savedUrl, $savedPid);
         if (!$ok) {
-            JsonResponse::serverError('Failed to save the new image path.');
+            (new JsonResponse(['error' => 'Failed to save the new image path.'], 500))->send();
         }
 
         // 8) Réponse OK
-        JsonResponse::ok(['field' => $field, 'url' => $savedUrl, 'public_id' => $savedPid], $fileLabel . ' updated successfully.');
+        (new JsonResponse([
+            'success'   => true,
+            'field'     => $field,
+            'url'       => $savedUrl,
+            'public_id' => $savedPid,
+            'message'   => $fileLabel . ' updated successfully.'
+        ], 200))->send();
     }
 
-    public function updateUser($post)
+    public function updateUser(array $post): JsonResponse
     {
         $userEntity = $this->getUserEntity();
 
         $user = $this->repository->findById($userEntity->getId());
         if (!$user) {
-            // 404 clair
-            JsonResponse::notFound("User not found.");
+            FlashMessage::add('error', 'User not found.');
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'User not found.'
+            ], 404);
         }
 
         $updatedUserEntity = $this->prepareUpdatedUserEntity($user, $post);
 
         $validationErrors = $this->validateUserEntity($updatedUserEntity);
         if (!empty($validationErrors)) {
-            // 422 standard pour la validation
-            JsonResponse::validationError($validationErrors);
+            foreach ($validationErrors as $field => $error) {
+                FlashMessage::add('error', "$field: $error");
+            }
+
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors'  => $validationErrors
+            ], 422);
         }
 
         $ok = $this->repository->update($updatedUserEntity);
         if ($ok === false) {
-            // Si ton repo peut échouer
-            JsonResponse::serverError("Failed to update profile.");
+            FlashMessage::add('error', 'Failed to update profile.');
+            return new JsonResponse([
+                'success' => false,
+                'message' => 'Failed to update profile.'
+            ], 500);
         }
 
-        // 200 OK + message (tu peux renvoyer les data utiles si besoin)
-        JsonResponse::ok([], "Profile updated successfully.");
+        FlashMessage::add('success', 'Profile updated successfully.');
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Profile updated successfully.',
+            'data'    => [
+                'user' => [
+                    'id'         => $updatedUserEntity->getId(),
+                    'fullname'   => $updatedUserEntity->getFullname(),
+                    'email'      => (string)$updatedUserEntity->getEmail(),
+                    'photo'      => $updatedUserEntity->getPhoto(),
+                    'username'   => $updatedUserEntity->getUsername(),
+                    'bio'        => $updatedUserEntity->getBio(),
+                    'phone'      => $updatedUserEntity->getPhone(),
+                    'status'     => $updatedUserEntity->getStatus(),
+                    'coverPhoto' => $updatedUserEntity->getCoverPhoto(),
+                ]
+            ]
+        ], 200);
     }
 
-    private function prepareUpdatedUserEntity($user, $post)
+    private function validateAndResetPassword(string $token, string $newPassword): void
     {
-        $userEntity = new User(
-            $user->getFullname(),
-            $user->getEmail(),
-            $user->getPhoto(),
-            $user->getPassword(),
-            $user->getRole(),
-            $user->getStatus(),
-            $user->getVerifiedEmail(),
-            $user->getCoverPhoto()
-        );
+        // Validation du mot de passe
+        $errorPwd = UserValidator::validatePassword($newPassword);
+        if ($errorPwd) {
+            FlashMessage::add('error', $errorPwd);
+            RedirectResponse::to("auth/reset-password?token=$token")->send();
+            exit;
+        }
 
-        $userEntity->setId($user->getId());
-        $userEntity->setStatus('active');
-        $userEntity->setFullname($post['full_name'] ?? $user->getFullname());
-        $userEntity->setEmail($post['email'] ?? $user->getEmail());
-        $userEntity->setBio($post['bio'] ?? $user->getBio());
-        $userEntity->setPhone($post['phone_number'] ?? $user->getPhone());
+        $userRepository = new UserRepository();
 
-        return $userEntity;
+        // Recherche l'utilisateur correspondant au token
+        $user = $userRepository->findUserWithStatsByResetToken($token);
+
+        if (!$user) {
+            FlashMessage::add('error', "Invalid or expired reset token.");
+            RedirectResponse::to("auth/forgot-password")->send();
+            exit;
+        }
+
+        // Reset du mot de passe
+        $this->processPasswordReset($user, $token, $newPassword);
     }
 
-    private function validateUserEntity($userEntity)
+    private function processPasswordReset(User $user, string $token, string $newPassword): void
+    {
+        $jwt = new JWT();
+
+        try {
+            // Vérifie la validité du token (check() lance une exception si invalide ou expiré)
+            $jwt->check($token, ['key' => env('JWT_SECRET')]);
+        } catch (\Exception $e) {
+            FlashMessage::add('error', $e->getMessage()); // contiendra "JWT token has expired." si expiré
+            RedirectResponse::to("auth/forgot-password")->send();
+            exit;
+        }
+
+        // Hash le mot de passe
+        $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
+        $user->setPassword($hashedPassword);
+
+        // Révoque les refresh tokens
+        $user->setRefreshToken(null);
+
+        // Mise à jour via le repository
+        $this->repository->update($user);
+
+        // Success + redirection
+        FlashMessage::add('success', "Your password has been successfully reset.");
+        RedirectResponse::to("auth/login")->send();
+        exit;
+    }
+
+    private function prepareUpdatedUserEntity(User $user, array $post): User
+    {
+        return new User(
+            id: $user->getId(),
+            fullname: $post['full_name'] ?? $user->getFullname(),
+            email: $post['email'] ? new Email($post['email']) : $user->getEmail(),
+            photo: $user->getPhoto(),
+            password: $user->getPassword(),
+            roles: $user->getRoles(),
+            status: 'active',
+            verifiedEmail: $user->getVerifiedEmail(),
+            coverPhoto: $user->getCoverPhoto(),
+            accessToken: $user->getAccessToken(),
+            refreshToken: $user->getRefreshToken(),
+            bio: $post['bio'] ?? $user->getBio(),
+            phone: $post['phone_number'] ?? $user->getPhone(),
+            username: $user->getUsername(),
+            cityName: $user->getCityName(),
+            countryName: $user->getCountryName(),
+            countryImageUrl: $user->getCountryImageUrl()
+        );
+    }
+
+    private function validateUserEntity(User $userEntity): array
     {
         $errors = [];
+        $validator = new UserValidator($this->repository);
 
-        $fullnameError = UserValidator::validateFullname($userEntity->getFullname());
-        if ($fullnameError) {
-            $errors[] = $fullnameError;
-        }
+        $fieldsToValidate = [
+            'fullname' => $userEntity->getFullname(),
+            'email'    => (string)$userEntity->getEmail(),
+            'bio'      => $userEntity->getBio(),
+            'phone'    => $userEntity->getPhone(),
+            'username' => $userEntity->getUsername(),
+        ];
 
-        $emailError = UserValidator::validateEmail($userEntity->getEmail());
-        if ($emailError) {
-            $errors[] = $emailError;
-        }
-
-        $bioError = UserValidator::validateBio($userEntity->getBio());
-        if ($bioError) {
-            $errors[] = $bioError;
-        }
-
-        $phoneError = UserValidator::validatePhoneNumber($userEntity->getPhone());
-        if ($phoneError) {
-            $errors[] = $phoneError;
+        foreach ($fieldsToValidate as $field => $value) {
+            if ($error = $validator->validateField($field, $value)) {
+                $errors[$field] = $error;
+            }
         }
 
         return $errors;
     }
 
-    public function resetPassword($post)
+    public function resetPassword(array $post): JsonResponse
     {
         try {
-            $this->validateCsrfToken($post);
+            // Vérifie le token CSRF
+            Csrf::verifyToken($post['csrf_token'] ?? null);
 
-            $token = trim($post['token']);
-            $newPassword = trim($post['new_password']);
+            $token = trim($post['token'] ?? '');
+            $newPassword = trim($post['new_password'] ?? '');
 
-            if (empty($token) || empty($newPassword)) {
-                $_SESSION['message'] = "Reset token or new password is missing.";
-                return RedirectionHelper::redirect("auth/reset-password");
+            if ($token === '' || $newPassword === '') {
+                $msg = "Reset token or new password is missing.";
+                FlashMessage::add('error', $msg);
+                return new JsonResponse(['success' => false, 'message' => $msg], 422);
             }
 
-            $this->validateAndResetPassword($token, $newPassword);
-        } catch (Exception $e) {
-            $_SESSION['message'] = "Erreur : " . $e->getMessage();
-            RedirectionHelper::redirect("auth/reset-password");
+            // Validation du mot de passe
+            $errorPwd = UserValidator::validatePassword($newPassword);
+            if ($errorPwd) {
+                FlashMessage::add('error', $errorPwd);
+                return new JsonResponse(['success' => false, 'message' => $errorPwd], 422);
+            }
+
+            $userRepository = new UserRepository();
+            $user = $userRepository->findUserWithStatsByResetToken($token);
+
+            if (!$user) {
+                $msg = "No user found for this reset token.";
+                FlashMessage::add('error', $msg);
+                return new JsonResponse(['success' => false, 'message' => $msg], 404);
+            }
+
+            // Reset du mot de passe
+            $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
+            $user->setPassword($hashedPassword);
+            $user->setRefreshToken(null);
+            $userRepository->update($user);
+
+            $msg = "Your password has been successfully reset.";
+            FlashMessage::add('success', $msg);
+
+            return new JsonResponse([
+                'success' => true,
+                'message' => $msg,
+                'data'    => [
+                    'userId' => $user->getId(),
+                    'email'  => (string)$user->getEmail()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            $msg = "Erreur : " . $e->getMessage();
+            FlashMessage::add('error', $msg);
+            return new JsonResponse(['success' => false, 'message' => $msg], 500);
         }
     }
 
-    private function validateCsrfToken($post)
-    {
-        if (empty($post['csrf_token']) || $post['csrf_token'] !== $_SESSION['csrf_token']) {
-            $_SESSION['message'] = "Token CSRF invalide.";
-            throw new Exception("Token CSRF invalide.");
-        }
-    }
-
-    private function validateAndResetPassword($token, $newPassword)
-    {
-        $errorPwd = UserValidator::validatePassword($newPassword);
-        if ($errorPwd) {
-            echo json_encode(['error' => $errorPwd], JSON_UNESCAPED_UNICODE);
-            $_SESSION['message'] = $errorPwd;
-            RedirectionHelper::redirect("auth/reset-password?token=$token");
-        }
-
-        $userRepository = new UserRepository();
-        $user = $userRepository->findByResetToken($token);
-
-        if ($user) {
-            $this->processPasswordReset($user, $token, $newPassword);
-        } else {
-            $_SESSION['message'] = "No user found for this reset token.";
-            RedirectionHelper::redirect("auth/forgot-password");
-        }
-    }
-
-    private function processPasswordReset($user, $token, $newPassword)
-    {
-        $jwt = new JWT();
-        if ($jwt->isExpired($token)) {
-            $_SESSION['message'] = "The reset token has expired.";
-            RedirectionHelper::redirect("auth/forgot-password");
-        }
-
-        $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
-        $user->setPassword($hashedPassword);
-        $user->setRefreshToken(null);
-        $this->repository->update($user);
-
-        FlashMessage::add('success', "Your password has been successfully reset.");
-        RedirectionHelper::redirect("login");
-    }
 
     public static function handleImage($file, $directory, $prefix = 'softadastra')
     {

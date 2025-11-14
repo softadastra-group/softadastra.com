@@ -34,6 +34,9 @@ class User extends Model
     private array $roleNames = [];
     private int $productCount = 0;
 
+    private ?string $photoPublicId = null;
+    private ?string $coverPhotoPublicId = null;
+
     protected static ?string $table = 'users';
     protected static array $fillable = [
         'fullname',
@@ -163,6 +166,24 @@ class User extends Model
     public function getVerifiedEmail(): bool
     {
         return $this->verifiedEmail;
+    }
+
+    public function getPhotoPublicId(): ?string
+    {
+        return $this->photoPublicId;
+    }
+    public function setPhotoPublicId(?string $id): void
+    {
+        $this->photoPublicId = $id;
+    }
+
+    public function getCoverPhotoPublicId(): ?string
+    {
+        return $this->coverPhotoPublicId;
+    }
+    public function setCoverPhotoPublicId(?string $id): void
+    {
+        $this->coverPhotoPublicId = $id;
     }
 
     // --- Getters / Setters type-safe ---
