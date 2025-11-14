@@ -10,5 +10,6 @@ return array (
     2 => 'Chat',
     3 => 'Studio',
     4 => 'Blog',
+    5 => 'Tech',
   ),
 );
