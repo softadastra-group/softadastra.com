@@ -11,5 +11,6 @@ return array (
     3 => 'Studio',
     4 => 'Blog',
     5 => 'Tech',
+    6 => 'Build',
   ),
 );
