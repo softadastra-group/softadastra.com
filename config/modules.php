@@ -8,5 +8,6 @@ return array (
     0 => 'Market',
     1 => 'User',
     2 => 'Chat',
+    3 => 'Studio',
   ),
 );
