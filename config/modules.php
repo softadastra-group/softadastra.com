@@ -9,5 +9,6 @@ return array (
     1 => 'User',
     2 => 'Chat',
     3 => 'Studio',
+    4 => 'Blog',
   ),
 );
