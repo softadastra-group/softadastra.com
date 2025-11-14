@@ -1,258 +1,154 @@
 <?php
 
-namespace Modules\User\Core\Validator;
+declare(strict_types=1);
+
+namespace Modules\User\Core\Services;
 
 use Modules\User\Core\Models\User;
+use Modules\User\Core\Helpers\UserHelper;
+use Modules\User\Core\Repositories\UserRepository;
 
-class UserValidator
+final class UserValidator
 {
-    static function validate(User $user)
+    private UserRepository $userRepository;
+    private const ALLOWED_STATUSES = ['active', 'inactive', 'banned'];
+
+    public function __construct(UserRepository $userRepository)
+    {
+        $this->userRepository = $userRepository;
+    }
+
+    /**
+     * Valide toute l'entité User.
+     * Retourne un tableau associatif d'erreurs (champ => message).
+     */
+    public function validate(User $user): array
     {
         $errors = [];
 
-        if ($error = self::validateEmail($user->getEmail())) {
-            $errors['email'] = $error;
-        }
-        if ($error = self::validatePassword($user->getPassword())) {
-            $errors['password'] = $error;
-        }
-        if ($error = self::validateFullname($user->getFullname())) {
-            $errors['fullname'] = $error;
-        }
-        if ($error = self::validateRole($user->getRole())) {
-            $errors['role'] = $error;
-        }
-        if ($error = self::validateStatus($user->getStatus())) {
-            $errors['status'] = $error;
-        }
-        if ($error = self::validateVerifiedEmail($user->getVerifiedEmail())) {
-            $errors['verified_email'] = $error;
-        }
-        if ($error = self::validatePhoto($user->getPhoto())) {
-            $errors['photo'] = $error;
+        // --- Fullname ---
+        $fullname = trim($user->getFullname());
+        if ($fullname === '') {
+            $errors['fullname'] = 'Full name is required.';
+        } elseif (mb_strlen($fullname) > 255) {
+            $errors['fullname'] = 'Full name cannot exceed 255 characters.';
         }
 
-        if ($error = self::validateCover($user->getCoverPhoto())) {
-            $errors['cover'] = $error;
+        // --- Email ---
+        $email = (string)$user->getEmail();
+        if ($err = self::validateEmail($email)) {
+            $errors['email'] = $err;
+        } elseif ($this->userRepository->findByEmail($email)) {
+            $errors['email'] = 'This email is already taken.';
         }
 
-        if ($error = self::validatePhoneNumber($user->getPhone())) {
-            $errors['phone'] = $error;
+        // --- Password ---
+        $password = $user->getPassword();
+        if ($err = self::validatePassword($password)) {
+            $errors['password'] = $err;
+        }
+
+        // --- Phone ---
+        $phone = $user->getPhone();
+        if ($err = self::validatePhoneNumber($phone)) {
+            $errors['phone'] = $err;
+        }
+
+        // --- Username ---
+        $username = $user->getUsername();
+        if ($username === null || trim($username) === '') {
+            $errors['username'] = 'Username is required.';
+        } elseif (!preg_match('/^[a-z0-9]+$/i', $username)) {
+            $errors['username'] = 'Username can only contain letters and numbers.';
+        } elseif ($this->userRepository->findByUsername($username)) {
+            $errors['username'] = 'This username is already taken.';
+        }
+
+        // --- Roles ---
+        $roles = $user->getRoles();
+        if (empty($roles)) {
+            $errors['roles'] = 'At least one role is required.';
+        }
+
+        // --- Status ---
+        if (!in_array($user->getStatus(), self::ALLOWED_STATUSES, true)) {
+            $errors['status'] = 'Invalid status.';
+        }
+
+        // --- Cover photo ---
+        $cover = $user->getCoverPhoto();
+        if ($cover && mb_strlen($cover) > 255) {
+            $errors['coverPhoto'] = 'Cover photo path is too long.';
+        }
+
+        // --- Bio ---
+        $bio = $user->getBio();
+        if ($bio && mb_strlen($bio) > 500) {
+            $errors['bio'] = 'Bio cannot exceed 500 characters.';
         }
 
         return $errors;
     }
 
-    static function validateEmail($email)
+    /**
+     * Valide un champ isolé (fullname, email, password, phone, username, etc.)
+     * Retourne le message d'erreur ou null si OK.
+     */
+    public function validateField(string $field, mixed $value): ?string
     {
+        return match ($field) {
+            'fullname' => $value === '' ? 'Full name is required.' : (mb_strlen($value) > 255 ? 'Full name cannot exceed 255 characters.' : null),
+            'email' => self::validateEmail((string)$value),
+            'password' => self::validatePassword((string)$value),
+            'phone' => self::validatePhoneNumber((string)$value),
+            'username' => $this->validateUsername((string)$value),
+            default => null,
+        };
+    }
+
+    /** Validation statique d'un email. */
+    public static function validateEmail(?string $email): ?string
+    {
+        if (!$email) {
+            return 'Email is required.';
+        }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return "Invalid email format";
+            return 'Invalid email format.';
         }
         return null;
     }
 
-    public static function validatePassword($password)
+    /** Validation statique d'un mot de passe. */
+    public static function validatePassword(?string $password): ?string
     {
-        $password = (string)$password;
-
-        $ok =
-            self::isValidLength($password) &&
-            self::hasUpperAndLowerCase($password) &&
-            self::hasDigits($password) &&
-            self::hasSpecialCharacters($password) &&
-            !self::containsSpaces($password);
-
-        if ($password === '') {
-            return "The password cannot be empty.";
+        if (!$password) {
+            return 'Password is required.';
         }
-
-        if (!$ok) {
-            // ✅ Un seul message clair, complet
-            return "Password must be 8–20 characters, include uppercase and lowercase letters, at least one digit, at least one special character (e.g., @, #, $), and contain no spaces.";
-        }
-
-        return null;
-    }
-
-    private static function isValidLength($password)
-    {
-        return strlen($password) >= 8 && strlen($password) <= 20;
-    }
-
-    private static function hasUpperAndLowerCase($password)
-    {
-        return preg_match('/[A-Z]/', $password) && preg_match('/[a-z]/', $password);
-    }
-
-    private static function hasDigits($password)
-    {
-        return preg_match('/\d/', $password);
-    }
-
-    private static function hasSpecialCharacters($password)
-    {
-        return preg_match('/[!@#$%^&*(),.?":{}|<>+\-=_\[\]\\;\'\/~€£¥°]/', $password);
-    }
-
-    private static function containsSpaces($password)
-    {
-        return strpos($password, ' ') !== false;
-    }
-
-    public static function validateFullname($fullname)
-    {
-        // Vérifie si le nom est vide ou composé uniquement d'espaces
-        if (empty(trim($fullname))) {
-            return "The full name cannot be empty or consist only of spaces.";
-        }
-
-        // Nettoie les espaces inutiles
-        $cleanedFullname = preg_replace('/\s+/', ' ', trim($fullname));
-
-        // Vérifie les caractères valides (lettres, apostrophes, tirets, espaces)
-        if (!preg_match("/^[\p{L} '-]+$/u", $cleanedFullname)) {
-            return "The full name contains invalid characters.";
-        }
-
-        // Sépare le nom en parties
-        $parts = explode(' ', $cleanedFullname);
-
-        // Si le nom a plus de deux parties, on n'accepte que les deux premiers mots
-        if (count($parts) < 2) {
-            return "The full name must include a first name and a last name.";
-        }
-
-        // Garde seulement les deux premiers mots comme prénom et nom
-        $firstName = implode(' ', array_slice($parts, 0, 2));
-
-        // Vérifie si le prénom et nom sont séparés en deux parties
-        $parts = explode(' ', $firstName);
-        if (count($parts) !== 2) {
-            return "The full name must include exactly a first name and a last name.";
-        }
-
-        return null; // Aucun problème, le nom est valide
-    }
-
-    public static function validateBio($bio)
-    {
-        if (empty($bio)) {
-            return "Bio is required.";
-        }
-
-        if (strlen($bio) < 10) {
-            return "The bio must be at least 10 characters long.";
-        }
-
-        if (strlen($bio) > 245) {
-            return "The bio must not exceed 245 characters.";
+        if (!UserHelper::validatePasswordPolicy($password)) {
+            return 'Password must be at least 8 characters long, include uppercase, lowercase and number.';
         }
         return null;
     }
 
-    static function validateRole($role)
+    /** Validation statique d'un numéro de téléphone au format E.164. */
+    public static function validatePhoneNumber(?string $phone): ?string
     {
-        if (!in_array($role, ['admin', 'user'])) {
-            return "Invalid role.";
+        if (!$phone) {
+            return 'Phone number is required.';
+        }
+        if (!preg_match('/^\+[1-9]\d{1,14}$/', $phone)) {
+            return 'Phone number must be in E.164 format.';
         }
         return null;
     }
 
-    static function validateStatus($status)
+    /** Validation d'un username. */
+    private function validateUsername(string $username): ?string
     {
-        if (!in_array($status, ['active', 'inactive'])) {
-            return "Invalid status";
-        }
-        return null;
-    }
-
-    static function validateVerifiedEmail($verified_email)
-    {
-        if (!is_int($verified_email)) {
-            return "Invalid verified_email";
-        }
-        return null;
-    }
-
-    static function validateAccessToken($accessToken)
-    {
-        if (strlen($accessToken) < 3) {
-            return "Access token must be at least 3 characters long";
-        }
-        return null;
-    }
-
-    static function validateRefreshToken($refreshToken)
-    {
-        if (strlen($refreshToken) < 3) {
-            return "Refresh token must be at least 3 characters long";
-        }
-        return null;
-    }
-
-    static function validateId($id)
-    {
-        if (!is_int($id)) {
-            return "Invalid id";
-        }
-        return null;
-    }
-
-    static function validatePhoto($photo)
-    {
-        if (strlen($photo) < 3) {
-            return "Photo must be at least 3 characters long";
-        }
-        return null;
-    }
-
-    static function validateCover($cover)
-    {
-        if (strlen($cover) < 3) {
-            return "Cover must be at least 3 characters long";
-        }
-        return null;
-    }
-    public static function validatePhoneNumber($phoneNumber)
-    {
-        if (empty($phoneNumber)) {
-            return "Phone number is required.";
-        }
-        $cleanedPhoneNumber = self::removeSpaces($phoneNumber);
-        if (!self::isValidFormat($cleanedPhoneNumber)) {
-            return "The phone number is invalid. It must start with a '+' followed by the country code and contain between 9 and 15 digits.";
-        }
-        if (!self::isValidNumber($cleanedPhoneNumber)) {
-            return "The phone number should only contain digits after the '+' sign.";
-        }
-
-        return null;
-    }
-    private static function removeSpaces($phoneNumber)
-    {
-        return str_replace(' ', '', $phoneNumber);
-    }
-
-    private static function isValidFormat($phoneNumber)
-    {
-        return preg_match("/^\+(?P<country_code>\d{1,4})(?P<number>\d{9,15})$/", $phoneNumber);
-    }
-
-    private static function isValidNumber($phoneNumber)
-    {
-        return preg_match("/^\+\d+$/", $phoneNumber);
-    }
-
-    public static function validateShippingAddress($bio)
-    {
-        if (empty($bio)) {
-            return "Shipping address is required.";
-        }
-
-        if (strlen($bio) > 245) {
-            return "Shipping address must not exceed 245 characters.";
-        }
-
+        $username = trim($username);
+        if ($username === '') return 'Username is required.';
+        if (!preg_match('/^[a-z0-9]+$/i', $username)) return 'Username can only contain letters and numbers.';
+        if ($this->userRepository->findByUsername($username)) return 'This username is already taken.';
         return null;
     }
 }
