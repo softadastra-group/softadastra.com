@@ -7,11 +7,5 @@ return array(
   array(
     0 => 'Market',
     1 => 'User',
-    2 => 'Chat',
-    3 => 'Studio',
-    4 => 'Blog',
-    5 => 'Tech',
-    6 => 'Build',
-    7 => 'Digital',
   ),
 );

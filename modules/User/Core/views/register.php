@@ -1,9 +1,7 @@
-<link rel="stylesheet" href="<?= asset('assets/register') ?>">
-<link rel="stylesheet" href="<?= asset('assets/css/popup.css') ?>">
-
 <div class="sa-auth">
     <section class="sa-card">
         <header class="sa-card__head">
+            <!-- ⬇️ tracer le retour vers Login -->
             <a href="/login"
                 class="sa-back"
                 data-sa-event="auth_login_back"
@@ -12,6 +10,7 @@
                 <span>Login</span>
             </a>
             <div class="sa-logo">
+                <!-- ⬇️ logo cliqué (optionnel) -->
                 <img src="/public/images/icons/softadastra.png"
                     alt="Softadastra Logo"
                     data-sa-event="auth_logo_click"
@@ -125,7 +124,7 @@
 </div>
 <script>
     // Config locale si besoin (sinon déjà dans ton layout global)
-    window.SA_API_BASE = window.SA_ACSS_PATHPI_BASE || "http://localhost:3000";
+    window.SA_API_BASE = window.SA_API_BASE || "http://localhost:3000";
     window.SA_USER_ID = null; // visiteur non connecté
 
     // 1) écran Register vu
@@ -152,7 +151,3 @@
         }
     });
 </script>
-
-
-<script src="<?= asset('assets/js/modal') ?>" defer></script>
-<script src="<?= asset('assets/js/register') ?>" defer></script>

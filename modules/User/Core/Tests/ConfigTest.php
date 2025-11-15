@@ -1,5 +1,7 @@
 <?php
 
+namespace Modules\User\Core\Tests;
+
 use PHPUnit\Framework\TestCase;
 
 final class ConfigTest extends TestCase
