@@ -112,7 +112,6 @@ abstract class Controller
         ?string $layoutOverride = null,
         int $status = 200
     ): HtmlResponse {
-        // au lieu de $filePath = $viewsDir . $this->dotToPath($path) . '.php';
         [$baseForView, $fileRel] = $this->resolveViewPath($path);
         $filePath = $baseForView . $fileRel;
 
@@ -120,40 +119,66 @@ abstract class Controller
             throw new ViewNotFoundException($filePath);
         }
 
+        // Capture du contenu de la vue
         $content = $this->capture(function () use ($filePath, $params) {
-            if (is_array($params)) {
-                extract($params, EXTR_SKIP);
-            }
+            if (is_array($params)) extract($params, EXTR_SKIP);
             require $filePath;
         });
 
-        if ($this->isAjax($request)) {
+        // Détecte si SPA forcé (header AJAX ou paramètre)
+        $isSPA = ($this->isAjax($request) || ($params['spa'] ?? false));
+
+        if ($isSPA) {
+            // Retourne juste le fragment HTML si SPA
             return new HtmlResponse($content, $status);
         }
 
+        // Sinon, envelopper avec le layout
         $layout = $layoutOverride ?? $this->layout;
         $layoutPath = $this->viewsBasePath() . $layout;
+
         if (!is_file($layoutPath)) {
             return new HtmlResponse($content, $status);
         }
 
         $full = $this->capture(function () use ($layoutPath, $content, $params) {
-            if (!empty(self::$layoutVars)) {
-                extract(self::$layoutVars, EXTR_OVERWRITE);
-            }
+            if (!empty(self::$layoutVars)) extract(self::$layoutVars, EXTR_OVERWRITE);
+            if (is_array($params)) extract($params, EXTR_OVERWRITE);
+            if (!isset($title) || $title === null || $title === '') $title = 'ivi.php';
 
-            if (is_array($params)) {
-                extract($params, EXTR_OVERWRITE);
-            }
+            // injecte le flag SPA et le JS global pour activer SPA automatiquement
+            echo '<script>window.__SPA__ = true;</script>';
+            echo <<<JS
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (!window.__SPA__) return;
 
-            if (!isset($title) || $title === null || $title === '') {
-                $title = 'ivi.php';
-            }
+    const loadPage = async (url) => {
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        const html = await res.text();
+        document.getElementById('app').innerHTML = html;
+        history.pushState(null, '', url);
+    };
+
+    document.querySelectorAll('a[data-spa]').forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            loadPage(link.href);
+        });
+    });
+
+    window.addEventListener('popstate', () => loadPage(location.href));
+});
+</script>
+JS;
 
             require $layoutPath;
         });
+
         return new HtmlResponse($full, $status);
     }
+
+
 
     /**
      * Shortcut for rendering a view using the default layout.
@@ -174,6 +199,11 @@ abstract class Controller
         ?Request $request = null,
         int $status = 200
     ): HtmlResponse {
+        // Force le mode SPA si AJAX
+        if ($request && $this->isAjax($request)) {
+            $params = $params ?? [];
+            $params['spa'] = true;
+        }
         return $this->render($path, $params, $request, null, $status);
     }
 
