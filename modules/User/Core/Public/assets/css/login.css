@@ -1,0 +1,1024 @@
+.custom-button-create.alternative-register {
+  background-color: #a8682a;
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 25px;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  transition: background-color 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.custom-button-create.alternative-register:hover {
+  background-color: #8b551f;
+}
+
+.card-container-create {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.custom-button-container-login {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 10px;
+}
+
+#loading-icon {
+  margin-left: 10px;
+  display: none;
+}
+
+.spinner-border-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.popup-message-flash {
+  display: none;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+  z-index: 1001;
+  max-width: 90%;
+  text-align: left;
+  font-size: 14px;
+  color: #333;
+  width: auto;
+  box-sizing: border-box;
+}
+
+.success-flash {
+  border: 2px solid #4caf50;
+  background-color: #eaf8e2;
+  color: #3c763d;
+}
+
+.error-flash {
+  border: 2px solid #f44336;
+  background-color: #fbe4e1;
+  color: #721c24;
+}
+
+.popup-message-flash .icon {
+  font-size: 30px;
+  margin-right: 15px;
+  vertical-align: middle;
+}
+
+.popup-message-flash .message-content {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 90%;
+}
+
+.close-message {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.popup-message-flash p {
+  margin: 0;
+}
+
+.popup-message-flash.show {
+  display: block;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.popup-message-flash.show {
+  display: block;
+  animation: fadeIn 0.5s ease-in-out;
+  margin-top: 50px;
+  padding: 10px;
+  width: 270px;
+}
+
+@media (max-width: 480px) {
+  .close-message {
+    top: 3px;
+    right: 10px;
+    font-size: 18px;
+  }
+}
+
+.login-page .logo img {
+  width: 20vw;
+}
+
+.custom-button-login {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 120px;
+  /* Pour éviter que le bouton rétrécisse */
+}
+
+.btn-spinner {
+  width: 1rem;
+  height: 1rem;
+}
+/* Style général du container */
+body {
+  margin: 0;
+  padding: 0;
+}
+.login-page {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 30px 25px;
+  margin: 20px auto;
+  max-width: 460px;
+  width: 100%;
+}
+
+/* Logo centré avec effet doux */
+.login-page .logo img {
+  max-width: 120px;
+  border-radius: 10px;
+  transition: transform 0.3s ease;
+}
+.login-page .logo img:hover {
+  transform: scale(1.05);
+}
+
+/* Titre */
+.login-page .card-title {
+  font-size: 22px;
+  color: #0f1111;
+  text-align: center;
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+/* Inputs stylés Amazon */
+.login-page .form-group input.form-control {
+  padding: 11px 14px;
+  border-radius: 6px;
+  border: 1px solid #a6a6a6;
+  font-size: 14px;
+  transition: box-shadow 0.2s ease;
+}
+.login-page .form-group input.form-control:focus {
+  border-color: #ff9900;
+  box-shadow: 0 0 3px rgba(255, 153, 0, 0.5);
+}
+
+/* Bouton principal */
+.custom-button-login {
+  background-color: #ff9900 !important;
+  color: #fff !important;
+  font-size: 16px;
+  padding: 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.custom-button-login:hover {
+  background-color: #ecb939 !important;
+}
+
+/* Bouton Google */
+.google-login-btn {
+  margin-top: 16px;
+  background-color: #fff;
+  color: #111;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 6px;
+  transition: box-shadow 0.2s ease;
+}
+.google-login-btn:hover {
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.15);
+}
+
+/* Lien mot de passe oublié */
+.forgot-password {
+  font-size: 0.9rem;
+  margin-top: 14px;
+  display: inline-block;
+  color: #007185;
+}
+.forgot-password:hover {
+  text-decoration: underline;
+}
+
+/* Section "Create account" */
+.card-container-create {
+  border-top: 1px solid #ddd;
+  margin-top: 0;
+  padding-top: 20px;
+  text-align: center;
+}
+.card-container-create p {
+  font-size: 15px;
+  margin-bottom: 10px;
+  color: #111;
+}
+
+/* Bouton création compte */
+.custom-button-create.alternative-register {
+  background-color: #e7e9ec;
+  color: #111;
+  font-weight: 500;
+  border: 1px solid #adb1b8;
+  border-radius: 6px;
+  padding: 10px 22px;
+  display: inline-block;
+  transition: background-color 0.3s ease, box-shadow 0.2s ease;
+}
+.custom-button-create.alternative-register:hover {
+  background-color: #d5d9dc;
+  box-shadow: 0 1px 3px rgba(15, 17, 17, 0.15);
+}
+
+/* Popup message */
+.popup-message {
+  font-size: 0.95rem;
+  border-color: #ff9900;
+  background-color: #fff8e1;
+}
+
+/* Responsive ajustements */
+@media only screen and (max-width: 480px) {
+  .login-page {
+    padding: 0;
+  }
+  .login-page .card-title {
+    font-size: 18px;
+  }
+  .custom-button-login {
+    font-size: 15px;
+  }
+  .custom-button-create.alternative-register {
+    font-size: 15px;
+  }
+}
+/* ================================
+   Softadastra — Auth / Landing Split
+   (responsive, a11y, dark-mode)
+=================================== */
+
+:root {
+  --xa-brand: #ff9900;
+  --xa-brand-600: #ff8a00;
+  --xa-ink: #111827;
+  --xa-text: #374151;
+  --xa-muted: #6b7280;
+  --xa-border: #e5e7eb;
+  --xa-surface: #ffffff;
+  --xa-soft: #f9fafb;
+  --xa-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  --xa-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.06);
+  --xa-radius: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --xa-ink: #f9fafb;
+    --xa-text: #e5e7eb;
+    --xa-muted: #a8b0bb;
+    --xa-border: #2c3440;
+    --xa-surface: #111418;
+    --xa-soft: #0c0f13;
+    --xa-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+    --xa-shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.28);
+  }
+}
+
+/* page shell */
+.xa-shell {
+  min-height: 100dvh;
+  background: radial-gradient(
+      1200px 600px at 10% -10%,
+      rgba(255, 153, 0, 0.08),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 90% 110%,
+      rgba(255, 153, 0, 0.07),
+      transparent 60%
+    ),
+    var(--xa-soft);
+  display: flex;
+  align-items: center;
+}
+
+/* container: 2 colonnes */
+.xa-container {
+  width: min(1200px, 94vw);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 28px;
+  align-items: stretch;
+  padding: clamp(14px, 2.5vw, 24px);
+}
+
+/* ================= LEFT ================= */
+.xa-left {
+  position: relative;
+  background: var(--xa-surface);
+  border: 1px solid var(--xa-border);
+  border-radius: var(--xa-radius);
+  box-shadow: var(--xa-shadow);
+  overflow: hidden;
+}
+
+.xa-left-inner {
+  position: relative;
+  padding: clamp(18px, 3vw, 28px);
+  z-index: 1;
+}
+
+/* brandbar */
+.xa-brandbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.xa-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--xa-ink);
+  font-weight: 800;
+}
+
+.xa-logo img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.xa-logo-title {
+  font-size: 1.05rem;
+  letter-spacing: 0.2px;
+}
+
+.xa-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--xa-brand);
+  text-decoration: none;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.xa-link:hover {
+  background: color-mix(in srgb, var(--xa-brand) 10%, transparent);
+}
+
+.xa-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--xa-brand) 40%, transparent);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+/* hero */
+.xa-hero {
+  margin: 10px 0 16px;
+}
+
+.xa-hero h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.5rem, 3.2vw, 2rem);
+  line-height: 1.15;
+  color: var(--xa-ink);
+  letter-spacing: 0.2px;
+}
+
+.xa-hero p {
+  margin: 0;
+  color: var(--xa-text);
+  font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+}
+
+.xa-muted {
+  color: var(--xa-muted);
+}
+
+/* points */
+.xa-points {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 14px 0 8px;
+}
+
+.xa-point {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--xa-border);
+  border-radius: 12px;
+  background: var(--xa-surface);
+  box-shadow: var(--xa-shadow-sm);
+}
+
+.xa-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #8a4b00;
+  background: linear-gradient(180deg, #fff3e0, #ffe6bf);
+  border: 1px solid #ffd9a8;
+  flex: 0 0 36px;
+}
+
+.xa-point .t strong {
+  color: var(--xa-ink);
+}
+
+.xa-point .t .s {
+  color: var(--xa-muted);
+  font-size: 0.95rem;
+}
+
+/* trust chips */
+.xa-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.xa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #ffd9a8;
+  background: #fff7ed;
+  color: #8a4b00;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* decorative blobs */
+.xa-deco {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.xa-deco .b1,
+.xa-deco .b2 {
+  position: absolute;
+  opacity: 0.32;
+  filter: blur(0px);
+  transform: scale(1.05);
+}
+
+.xa-deco .b1 {
+  width: 360px;
+  top: -80px;
+  left: -80px;
+}
+
+.xa-deco .b2 {
+  width: 300px;
+  bottom: -80px;
+  right: -60px;
+  opacity: 0.24;
+}
+
+/* ================= RIGHT (CARD) ================= */
+.xa-right {
+  display: flex;
+  align-items: stretch;
+}
+
+.xa-card {
+  background: var(--xa-surface);
+  border: 1px solid var(--xa-border);
+  border-radius: var(--xa-radius);
+  box-shadow: var(--xa-shadow);
+  padding: clamp(16px, 2.6vw, 22px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.xa-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.xa-back,
+.xa-help {
+  color: var(--xa-brand);
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.xa-back:hover,
+.xa-help:hover {
+  background: color-mix(in srgb, var(--xa-brand) 10%, transparent);
+}
+
+.xa-back svg,
+.xa-help svg {
+  flex: 0 0 auto;
+}
+
+.xa-card-body {
+  padding-top: 4px;
+}
+
+.xa-title {
+  margin: 2px 0 2px;
+  font-size: clamp(1.2rem, 2.2vw, 1.5rem);
+  line-height: 1.2;
+  color: var(--xa-ink);
+}
+
+.xa-desc {
+  margin: 0 0 12px;
+  color: var(--xa-muted);
+}
+
+.xa-actions {
+  display: grid;
+  gap: 10px;
+}
+
+/* buttons base */
+.xa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--xa-border);
+  background: #fff;
+  color: #1f2937;
+  padding: 12px 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 800;
+  box-shadow: var(--xa-shadow-sm);
+  transition: transform 0.06s ease, box-shadow 0.2s ease, background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.xa-btn:hover {
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.xa-btn:active {
+  transform: translateY(0);
+}
+
+.xa-btn:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--xa-brand) 35%, transparent);
+  outline-offset: 2px;
+}
+
+/* Google */
+.xa-btn--google {
+  border-color: #dadce0;
+  font-weight: 700;
+}
+
+.xa-btn--google svg {
+  flex: 0 0 20px;
+}
+
+/* Email */
+.xa-btn--email {
+  border-color: #dfe3eb;
+  background: linear-gradient(0deg, #fff, #fff) padding-box,
+    linear-gradient(90deg, #e6ebf2, #fafafa) border-box;
+}
+
+/* Primary */
+.xa-btn--primary {
+  background: var(--xa-brand);
+  color: #1b1100;
+  border-color: var(--xa-brand);
+}
+
+.xa-btn--primary:hover {
+  background: var(--xa-brand-600);
+}
+
+.xa-btn--primary svg {
+  flex: 0 0 auto;
+}
+
+/* divider */
+.xa-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0;
+  color: var(--xa-muted);
+  font-weight: 700;
+}
+
+.xa-divider::before,
+.xa-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1 1 auto;
+  background: var(--xa-border);
+  border-radius: 10px;
+}
+
+/* legal */
+.xa-legal {
+  margin-top: 8px;
+  color: var(--xa-muted);
+}
+
+.xa-legal a {
+  color: var(--xa-brand);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.xa-legal a:hover {
+  text-decoration: underline;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 1024px) {
+  .xa-container {
+    grid-template-columns: 1fr;
+  }
+
+  /* on fait passer le formulaire en premier sur mobile */
+  .xa-right {
+    order: -1;
+  }
+
+  .xa-deco .b1 {
+    width: 300px;
+    top: -90px;
+    left: -110px;
+  }
+
+  .xa-deco .b2 {
+    width: 260px;
+    bottom: -100px;
+    right: -90px;
+  }
+}
+
+@media (max-width: 640px) {
+  .xa-shell {
+    align-items: flex-start;
+  }
+
+  .xa-container {
+    gap: 14px;
+    padding: 12px;
+    width: min(680px, 96vw);
+  }
+
+  .xa-left,
+  .xa-card {
+    border-radius: 14px;
+  }
+
+  .xa-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .xa-point {
+    padding: 10px;
+  }
+
+  .xa-actions .xa-btn {
+    padding: 12px 12px;
+  }
+
+  .xa-deco {
+    opacity: 0.65;
+  }
+}
+
+/* reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .xa-btn,
+  .xa-link {
+    transition: none;
+  }
+}
+
+/* small niceties */
+.xa-btn svg {
+  display: block;
+}
+
+/* === Force LIGHT theme (override) === */
+/* Place ce bloc APRÈS tout le CSS précédent */
+
+html {
+  color-scheme: light;
+  background: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* re-force les variables claires même si l’OS est en dark */
+    --xa-ink: #111827;
+    --xa-text: #374151;
+    --xa-muted: #6b7280;
+    --xa-border: #e5e7eb;
+    --xa-surface: #ffffff;
+    --xa-soft: #f9fafb;
+    --xa-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+    --xa-shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* Optionnel : si tu veux un fond encore plus “clean” (moins de motifs) */
+.xa-shell {
+  background: radial-gradient(
+      1200px 600px at 10% -10%,
+      rgba(255, 153, 0, 0.05),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 90% 110%,
+      rgba(255, 153, 0, 0.04),
+      transparent 60%
+    ),
+    #f2f2f2;
+  /* fond bien clair */
+}
+
+/* ====== LOGIN PAGE GOOD BOOK ====== */
+
+/* Container */
+.xa-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gb-bg);
+  color: var(--gb-text);
+  transition: background 0.3s, color 0.3s;
+  padding: 2rem;
+  font-family: var(--font-sans);
+}
+
+.xa-container.is-single {
+  max-width: 450px;
+  width: 100%;
+}
+
+/* CARD */
+.xa-card {
+  background: var(--gb-header-bg);
+  color: var(--gb-header-text);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  transition: background 0.3s, color 0.3s;
+}
+
+.xa-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.xa-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--gb-gold);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.xa-link:hover {
+  color: var(--gb-gold-variant2);
+}
+
+.xa-card-body h2.xa-title {
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.xa-card-body p.xa-desc {
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  color: var(--gb-white);
+}
+
+/* BUTTONS */
+.xa-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.xa-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: background 0.3s, transform 0.2s;
+  justify-content: center;
+}
+
+.xa-btn svg {
+  flex-shrink: 0;
+}
+
+.xa-btn--google {
+  background: #ffffff;
+  color: #000;
+  border: 1px solid var(--gb-gold);
+}
+
+.xa-btn--google:hover {
+  background: var(--gb-gold);
+  color: var(--gb-black);
+}
+
+.xa-btn--email {
+  background: var(--gb-gold);
+  color: var(--gb-black);
+}
+
+.xa-btn--email:hover {
+  background: var(--gb-gold-variant2);
+}
+
+.xa-btn--primary {
+  background: var(--gb-black);
+  color: var(--gb-gold);
+}
+
+.xa-btn--primary:hover {
+  background: var(--gb-gold);
+  color: var(--gb-black);
+}
+
+/* Divider */
+.xa-divider {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #ccc;
+  margin: 0.8rem 0;
+  position: relative;
+}
+
+.xa-divider::before,
+.xa-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 40%;
+  height: 1px;
+  background: #ccc;
+}
+
+.xa-divider::before {
+  left: 0;
+}
+
+.xa-divider::after {
+  right: 0;
+}
+
+/* LEGAL */
+.xa-legal {
+  font-size: 0.75rem;
+  text-align: center;
+  margin-top: 1rem;
+  color: #aaa;
+}
+
+.xa-legal a {
+  color: var(--gb-gold);
+  text-decoration: none;
+}
+
+.xa-legal a:hover {
+  color: var(--gb-gold-variant2);
+}
+
+/* RESPONSIVE */
+@media (max-width: 480px) {
+  .xa-card {
+    padding: 1.5rem;
+  }
+
+  .xa-card-body h2.xa-title {
+    font-size: 1.5rem;
+  }
+
+  .xa-actions {
+    gap: 0.6rem;
+  }
+}
+
+/* Header & Footer dynamiques */
+.gb-header,
+.gb-footer,
+.xa-card {
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Thème sombre */
+body.dark-theme {
+  --gb-bg: #0f0f0f;
+  --gb-text: #f1f1f1;
+  --gb-header-bg: #1a1a1a;
+  --gb-header-text: var(--gb-gold);
+  --gb-footer-bg: #1a1a1a;
+  --gb-footer-text: var(--gb-gold);
+}
+
+/* Thème clair */
+body:not(.dark-theme) {
+  --gb-bg: var(--gb-white);
+  --gb-text: var(--gb-black);
+  --gb-header-bg: var(--gb-black);
+  --gb-header-text: var(--gb-white);
+  --gb-footer-bg: var(--gb-black);
+  --gb-footer-text: var(--gb-white);
+}
+
+/* Appliquer les couleurs */
+body {
+  background: var(--gb-bg);
+  color: var(--gb-text);
+}
+
+.gb-header {
+  background-color: var(--gb-header-bg);
+  color: var(--gb-header-text);
+}
+
+.gb-footer {
+  background-color: var(--gb-footer-bg);
+  color: var(--gb-footer-text);
+}
+
+.xa-card {
+  background-color: var(--gb-header-bg);
+  color: var(--gb-header-text);
+}
