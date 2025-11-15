@@ -8,9 +8,17 @@
   failOnWarning="false"
 >
   <testsuites>
-    <testsuite name="Ivi Test Suite">
+
+    <!-- Tests du framework (core, helpers...) -->
+    <testsuite name="Core Tests">
       <directory>tests</directory>
     </testsuite>
+
+    <!-- 🚀 Tests de modules : structure modules/<Vendor>/<Module>/Tests -->
+    <testsuite name="Module Tests">
+      <directory>modules/*/*/Tests</directory>
+    </testsuite>
+
   </testsuites>
 
   <source>
