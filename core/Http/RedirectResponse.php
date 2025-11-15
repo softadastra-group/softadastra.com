@@ -26,7 +26,7 @@ final class RedirectResponse extends Response
         } else {
             if (!headers_sent()) {
                 header('Location: ' . $this->url, true, $this->status);
-                exit; // important en prod pour stopper l'exécution
+                exit;
             }
         }
     }
