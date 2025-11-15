@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-return array (
-  'modules' => 
-  array (
+return array(
+  'modules' =>
+  array(
     0 => 'Market',
     1 => 'User',
     2 => 'Chat',
