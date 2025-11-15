@@ -15,6 +15,7 @@ use Ivi\Http\JsonResponse;
 use Ivi\Http\RedirectResponse;
 use Modules\User\Core\Factories\UserFactory;
 use Modules\User\Core\Image\PhotoHandler;
+use Modules\User\Core\Validator\UserValidator;
 use Modules\User\Core\ValueObjects\Email;
 use Modules\User\Core\ValueObjects\Role;
 
@@ -23,10 +24,25 @@ class UserService extends BaseService
     private UserRepository $repository;
     private int $jwtValidity = 3600 * 24; // 24h
 
+    private ?UserValidator $validator = null;
+    private $tokenGenerator;
+    /** Handler pour intercepter JsonResponse dans les tests */
+    private $jsonResponseHandler = null;
+
     public function __construct(UserRepository $repository)
     {
         parent::__construct();
         $this->repository = $repository;
+    }
+
+    public function setJsonResponseHandler(callable $handler): void
+    {
+        $this->jsonResponseHandler = $handler;
+    }
+
+    public function setTokenGenerator(callable $generator): void
+    {
+        $this->tokenGenerator = $generator;
     }
 
     /** Login standard via AuthUser helper */
@@ -57,12 +73,14 @@ class UserService extends BaseService
             $password = trim($password);
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                (new JsonResponse(['error' => 'Invalid email format.'], 400))->send();
+                $this->sendJson(['error' => 'Invalid email format.'], 400);
+                return;
             }
 
             $lockKey = 'login_lock_' . md5($email);
             $this->repository->acquireLock($lockKey);
 
+            // --- récupérer les tentatives échouées
             $failedData = $this->getFailedAttempts($email);
             $attempts = $failedData['failed_attempts'];
             $lastFailed = $failedData['last_failed_login'];
@@ -72,13 +90,14 @@ class UserService extends BaseService
                 $elapsed = $lastFailed ? (time() - strtotime($lastFailed)) : 0;
                 if ($elapsed < $BLOCK_SECONDS) {
                     $remainingMin = (int)ceil(($BLOCK_SECONDS - $elapsed) / 60);
-                    (new JsonResponse([
+                    $this->sendJson([
                         'success'   => false,
                         'error'     => "Account locked. Try again in {$remainingMin} minute(s).",
                         'blocked'   => true,
                         'remaining' => $remainingMin,
                         'attempts'  => $attempts,
-                    ], 429))->send();
+                    ], 429);
+                    return;
                 } else {
                     $this->repository->resetFailedAttempts($email);
                     $attempts = 0;
@@ -93,7 +112,8 @@ class UserService extends BaseService
             $user = $this->repository->findByEmail($email);
             if (!$user || !$user->getPassword() || !UserHelper::verifyPassword($password, $user->getPassword())) {
                 $this->repository->incrementFailedAttempts($email);
-                (new JsonResponse(['error' => 'Incorrect email or password.'], 401))->send();
+                $this->sendJson(['error' => 'Incorrect email or password.'], 401);
+                return;
             }
 
             $this->repository->resetFailedAttempts($email);
@@ -101,21 +121,20 @@ class UserService extends BaseService
             $token = $this->issueAuthForUser($user);
 
             FlashMessage::add('success', "Welcome, {$user->getUsername()}!");
-
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/user/dashboard'));
 
-            (new JsonResponse([
-                'token'    => $token,
-                'user'     => [
+            $this->sendJson([
+                'token' => $token,
+                'user' => [
                     'id'       => (int)$user->getId(),
-                    'email'    => $user->getEmail(),
+                    'email'    => (string)$user->getEmail(),
                     'username' => $user->getUsername(),
                 ],
                 'redirect' => $redirect,
-            ], 200))->send();
+            ], 200);
         } catch (\Throwable $e) {
             error_log('Login error: ' . $e->getMessage());
-            (new JsonResponse(['error' => 'An unexpected error occurred.'], 500))->send();
+            $this->sendJson(['error' => 'An unexpected error occurred.'], 500);
         } finally {
             if ($lockKey) {
                 $this->repository->releaseLock($lockKey);
@@ -123,29 +142,42 @@ class UserService extends BaseService
         }
     }
 
+    /**
+     * Récupère les tentatives échouées pour un email.
+     */
+    private function getFailedAttempts(string $email): array
+    {
+        $row = User::query('login_attempts')->where('email = ?', $email)->first();
+        return [
+            'failed_attempts'   => $row['failed_attempts'] ?? 0,
+            'last_failed_login' => $row['last_failed_login'] ?? null,
+        ];
+    }
+
+
     /** Login via Google OAuth (entrée depuis callback Google) */
     public function loginWithGoogleOAuth(object $googleUser): void
     {
         try {
-            // 1️⃣ Capture et sécurise le "next" depuis le state OAuth Google
             $this->captureNextFromGoogleState();
 
-            // 2️⃣ Validation de l'email
             $email = strtolower(trim((string)($googleUser->email ?? '')));
             if (!$email) {
                 FlashMessage::add('error', 'Google did not return a valid email.');
                 RedirectResponse::to('/login')->send();
+                return;
             }
 
-            // 3️⃣ Vérifie si l'utilisateur existe
             $existingUser = $this->repository->findByEmail($email);
             if ($existingUser) {
                 $this->issueAuthForUser($existingUser);
+                FlashMessage::add('success', 'Welcome back, ' . ($existingUser->getUsername() ?: $existingUser->getFullname()) . '!');
                 $next = $this->safeNextFromRequest('/');
-                RedirectResponse::to($this->withAfterLoginHash($next))->send();
+                RedirectResponse::to($this->withAfterLoginHash($next))->send(); // <-- send()
+                return;
             }
 
-            // 4️⃣ Crée un nouvel utilisateur si nécessaire
+            // Création du nouvel utilisateur
             $userData = [
                 'fullname'      => $googleUser->name ?? '',
                 'email'         => $email,
@@ -156,21 +188,21 @@ class UserService extends BaseService
                 'coverPhoto'    => 'cover.jpg',
             ];
 
-            $roles = [new Role(1, 'user')]; // rôle par défaut
+            $roles = [new Role(1, 'user')];
             $newUser = $this->repository->createWithRoles($userData, $roles);
 
-            // 5️⃣ Authentification + création session/JWT
             $this->issueAuthForUser($newUser);
+            FlashMessage::add('success', 'Welcome, ' . ($newUser->getUsername() ?: $newUser->getFullname()) . '!');
 
-            // 6️⃣ Redirection sécurisée vers finalize-registration
             $next = $this->safeNextFromRequest('/finalize-registration');
-            RedirectResponse::to($this->withAfterLoginHash($next))->send();
+            RedirectResponse::to($this->withAfterLoginHash($next))->send(); // <-- send()
         } catch (\Throwable $e) {
             error_log('Google OAuth login error: ' . $e->getMessage());
             FlashMessage::add('error', 'An error occurred during Google login.');
-            RedirectResponse::to('/login')->send();
+            RedirectResponse::to('/login')->send(); // <-- send()
         }
     }
+
 
     public function finalizeRegistration(array $post): void
     {
@@ -235,7 +267,8 @@ class UserService extends BaseService
             $emailStr = strtolower(trim((string)($googleUser->email ?? '')));
             if (!$emailStr) {
                 FlashMessage::add('error', 'Google did not return a valid email.');
-                RedirectResponse::to('/login')->send();
+                RedirectResponse::to('/login'); // handler de test ou production
+                return;
             }
 
             // 2️⃣ Vérifie si l'utilisateur existe déjà
@@ -243,7 +276,8 @@ class UserService extends BaseService
             if ($existingUser) {
                 $token = $this->issueAuthForUser($existingUser);
                 FlashMessage::add('success', 'Welcome back, ' . $existingUser->getUsername() . '!');
-                RedirectResponse::to($this->safeNextFromRequest('/'))->send();
+                RedirectResponse::to($this->safeNextFromRequest('/'));
+                return;
             }
 
             // 3️⃣ Crée l'utilisateur via UserFactory
@@ -268,13 +302,14 @@ class UserService extends BaseService
             FlashMessage::add('success', 'Welcome, ' . $savedUser->getUsername() . '!');
 
             // 6️⃣ Redirection sécurisée
-            RedirectResponse::to($this->safeNextFromRequest('/finalize-registration'))->send();
+            RedirectResponse::to($this->safeNextFromRequest('/finalize-registration'));
         } catch (\Throwable $e) {
             error_log('LoginWithGoogle error: ' . $e->getMessage());
             FlashMessage::add('error', 'An unexpected error occurred.');
-            RedirectResponse::to('/login')->send();
+            RedirectResponse::to('/login');
         }
     }
+
 
     // === Helpers privés ===
 
@@ -306,20 +341,8 @@ class UserService extends BaseService
         }
     }
 
-    /** Récupère tentatives depuis DB */
-    private function getFailedAttempts(string $email): array
-    {
-        $userRow = User::query()->where('email = ?', $email)->first();
-        $loginRow = User::query('login_attempts')->where('email = ?', $email)->first();
-
-        return [
-            'failed_attempts' => (int)($loginRow['failed_attempts'] ?? $userRow['failed_attempts'] ?? 0),
-            'last_failed_login' => $loginRow['last_failed_login'] ?? $userRow['last_failed_login'] ?? null,
-        ];
-    }
-
     /** Crée session + JWT pour un utilisateur */
-    private function issueAuthForUser(User $user): string
+    protected function issueAuthForUser(User $user): string
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             @session_start();
@@ -355,6 +378,7 @@ class UserService extends BaseService
 
         return $token;
     }
+
 
     /** Normalise et sécurise le paramètre `next` */
     private function safeNextFromRequest(string $default = '/'): string
@@ -448,36 +472,37 @@ class UserService extends BaseService
             if ($err = UserValidator::validatePassword($passwordPlain)) $earlyErrors['password'] = $err;
 
             if (!empty($earlyErrors)) {
-                (new JsonResponse(['errors' => $earlyErrors], 400))->send();
+                $this->sendJson(['errors' => $earlyErrors], 400);
                 return;
             }
 
             // ---- 3) Unicité email
             if ($this->repository->findByEmail($email)) {
-                (new JsonResponse(['error' => 'This email is already taken.'], 409))->send();
+                $this->sendJson(['error' => 'This email is already taken.'], 409);
                 return;
             }
 
             // ---- 4) Création entité utilisateur via UserFactory
+            $photo = null;
             $userData = [
-                'fullname'       => $fullname,
-                'email'          => $email,
-                'photo'          => UserHelper::getProfileImage($photo ?? null),
-                'password'       => UserHelper::hashPassword($passwordPlain),
-                'roles'          => [UserHelper::defaultRole()],
-                'status'         => UserHelper::defaultStatus(),
-                'verifiedEmail'  => false,
-                'coverPhoto'     => UserHelper::defaultCover(),
-                'bio'            => UserHelper::defaultBio(),
-                'phone'          => $phone_number,
+                'fullname'      => $fullname,
+                'email'         => $email,
+                'photo'         => UserHelper::getProfileImage($photo),
+                'password'      => UserHelper::hashPassword($passwordPlain),
+                'roles'         => [UserHelper::defaultRole()],
+                'status'        => UserHelper::defaultStatus(),
+                'verifiedEmail' => false,
+                'coverPhoto'    => UserHelper::defaultCover(),
+                'bio'           => UserHelper::defaultBio(),
+                'phone'         => $phone_number,
             ];
 
             $userEntity = UserFactory::createFromArray($userData);
 
             // ---- 5) Validation métier complète
-            $validator = new UserValidator($this->repository); // instanciation
+            $validator = $this->validator ?? new UserValidator($this->repository);
             if ($errors = $validator->validate($userEntity)) {
-                (new JsonResponse(['errors' => (array)$errors], 422))->send();
+                $this->sendJson(['errors' => (array)$errors], 422);
                 return;
             }
 
@@ -496,16 +521,29 @@ class UserService extends BaseService
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/'));
 
             // ---- 10) Réponse JSON 201
-            (new JsonResponse([
+            $this->sendJson([
                 'token'    => $token,
                 'redirect' => $redirect,
                 'message'  => 'Account created successfully.'
-            ], 201))->send();
+            ], 201);
         } catch (\Throwable $e) {
-            (new JsonResponse([
+            $this->sendJson([
                 'error'  => 'An error occurred.',
                 'reason' => $e->getMessage()
-            ], 500))->send();
+            ], 500);
+        }
+    }
+
+    /** Helper interne pour centraliser l'envoi de JSON */
+    private function sendJson(array $data, int $status): void
+    {
+        $response = new JsonResponse($data, $status);
+
+        if ($this->jsonResponseHandler) {
+            // Interception pour les tests
+            ($this->jsonResponseHandler)($response);
+        } else {
+            $response->send();
         }
     }
 
@@ -851,6 +889,10 @@ class UserService extends BaseService
         }
     }
 
+    public function setValidator(UserValidator $validator): void
+    {
+        $this->validator = $validator;
+    }
 
     public static function handleImage($file, $directory, $prefix = 'softadastra')
     {
