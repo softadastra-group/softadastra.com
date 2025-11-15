@@ -11,13 +11,14 @@ class AuthController extends Controller
 {
     public function index(): HtmlResponse
     {
-        $title = (string) (cfg(strtolower('User') . '.title', 'Softadastra User') ?: 'Softadastra User');
+        $title = (string) (cfg('user.title', 'Softadastra User') ?: 'Softadastra User');
         $this->setPageTitle($title);
 
-        $styles  = '<link rel="stylesheet" href="' . asset("assets/css/login.css") . '">';
-        $scripts = '<script src="' . asset("assets/js/login.js") . '" defer></script>';
+        // 🔹 Utiliser module_asset avec $tag=true
+        $styles  = module_asset('User/Core', 'assets/css/login.css');
+        $scripts = module_asset('User/Core', 'assets/js/login.js');
 
-        return $this->view(strtolower('User') . '::login', [
+        return $this->view('user::login', [
             'title'   => $title,
             'styles'  => $styles,
             'scripts' => $scripts,
