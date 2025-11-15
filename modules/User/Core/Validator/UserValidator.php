@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Modules\User\Core\Services;
+namespace Modules\User\Core\Validator;
 
 use Modules\User\Core\Models\User;
 use Modules\User\Core\Helpers\UserHelper;
 use Modules\User\Core\Repositories\UserRepository;
 
-final class UserValidator
+class UserValidator
 {
     private UserRepository $userRepository;
     private const ALLOWED_STATUSES = ['active', 'inactive', 'banned'];

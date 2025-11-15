@@ -10,11 +10,23 @@ use Modules\User\Core\Factories\UserFactory;
 use Modules\User\Core\Helpers\UserHelper;
 use Modules\User\Core\ValueObjects\Role;
 
-final class UserRepository extends Repository
+class UserRepository extends Repository
 {
     protected function modelClass(): string
     {
         return User::class;
+    }
+
+    /** Récupère tentatives depuis DB */
+    public function getFailedAttempts(string $email): array
+    {
+        $userRow = User::query()->where('email = ?', $email)->first();
+        $loginRow = User::query('login_attempts')->where('email = ?', $email)->first();
+
+        return [
+            'failed_attempts' => (int)($loginRow['failed_attempts'] ?? $userRow['failed_attempts'] ?? 0),
+            'last_failed_login' => $loginRow['last_failed_login'] ?? $userRow['last_failed_login'] ?? null,
+        ];
     }
 
     /**

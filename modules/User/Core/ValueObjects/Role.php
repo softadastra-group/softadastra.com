@@ -6,11 +6,12 @@ namespace Modules\User\Core\ValueObjects;
 
 class Role
 {
-    private int $id;
+    private ?int $id;
     private string $name;
 
     public function __construct(int $id, string $name)
     {
+        $this->id = $id;
         $this->name = $name;
     }
 

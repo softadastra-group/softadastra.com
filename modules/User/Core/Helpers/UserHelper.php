@@ -10,7 +10,7 @@ use Modules\User\Core\Repositories\UserRepository;
 use Modules\User\Core\Models\User;
 use Modules\User\Core\ValueObjects\Role;
 
-final class UserHelper
+class UserHelper
 {
     private const PASSWORD_ALGO = PASSWORD_BCRYPT;
     private const PASSWORD_OPTIONS = ['cost' => 12];

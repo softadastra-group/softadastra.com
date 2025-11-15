@@ -9,6 +9,12 @@ final class JsonResponse extends Response
     private int $encodingOptions;
     private int $depth;
 
+    /**
+     * Callback pour override le send() dans les tests
+     * @var null|callable
+     */
+    private static $overrideSendCallback = null;
+
     public function __construct(
         mixed $data = null,
         int $status = 200,
@@ -42,5 +48,27 @@ final class JsonResponse extends Response
     {
         $this->depth = $depth;
         return $this;
+    }
+
+    /** Override le comportement de send() pour les tests */
+    public static function overrideSend(?callable $callback): void
+    {
+        self::$overrideSendCallback = $callback;
+    }
+
+    public function send(): void
+    {
+        if (self::$overrideSendCallback) {
+            ($this::$overrideSendCallback)($this);
+            return;
+        }
+
+        parent::send();
+    }
+
+    /** Récupère les données JSON encodées */
+    public function getData(): mixed
+    {
+        return json_decode($this->content(), true);
     }
 }
