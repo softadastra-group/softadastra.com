@@ -6,6 +6,6 @@ return array(
   'modules' =>
   array(
     0 => 'Market',
-    1 => 'User',
+    1 => 'Auth',
   ),
 );
