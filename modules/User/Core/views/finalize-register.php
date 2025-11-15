@@ -1,4 +1,3 @@
-<link rel="stylesheet" href="<?= asset('assets/css/finalize-register.css') ?>">
 <style>
     #app {
         padding-top: 100px !important;
@@ -6,6 +5,7 @@
 
     .terms-checkbox {
         display: inline-block;
+        /* obligatoire, jamais display:none */
         position: relative;
         width: auto;
         height: auto;
@@ -27,6 +27,7 @@
             <h2 class="card-title" style="margin-bottom: 20px;">Finalize Your Account</h2>
             <form id="registerForm" method="post" style="margin-bottom: 1rem;">
                 <input type="hidden" name="csrf_token" value="<?php echo isset($_SESSION['csrf_token']) ? htmlspecialchars($_SESSION['csrf_token']) : ''; ?>">
+                <!-- 📱 Champ téléphone avec drapeau + dropdown -->
                 <div class="form-group mb-3" id="phone-wrapper">
                     <label for="phone_number">WhatsApp Number :</label>
                     <div class="softadastra-text-field phone-input-wrapper">
@@ -66,7 +67,7 @@
 </div>
 <script>
     (function hardMuteConsoleAndErrors() {
-        var MUTE_ALL = true;
+        var MUTE_ALL = true; // désactive les logs JS
         if (!MUTE_ALL) return;
         var noop = function() {};
         var c = (window.console = window.console || {});
@@ -91,6 +92,7 @@
         );
     })();
 
+    // 📱 Normalisation E.164 (UG + DRC)
     function normalizePhone(val) {
         if (!val) return "";
         let v = val.trim().replace(/[^\d+]/g, "");
@@ -140,12 +142,14 @@
             });
         });
 
+        // --- Submit ---
         $("#registerForm").on("submit", function(event) {
             event.preventDefault();
             const form = this;
 
+            // 🔹 Vérification HTML5
             if (!form.checkValidity()) {
-                form.reportValidity();
+                form.reportValidity(); // focus automatique sur le champ invalide
                 return;
             }
 
