@@ -7,6 +7,7 @@ namespace Modules\Auth\Core\Http\Controllers;
 use App\Controllers\Controller;
 use Ivi\Core\Services\GoogleService;
 use Ivi\Http\HtmlResponse;
+use Exception;
 
 class AuthController extends Controller
 {
@@ -15,38 +16,42 @@ class AuthController extends Controller
     public function __construct()
     {
         $config = config('google');
+        if (!is_array($config)) {
+            throw new \RuntimeException('Google configuration not found. Make sure config/google.php exists and returns an array.');
+        }
+
         $this->google = new GoogleService($config);
     }
 
-    public function index(): HtmlResponse
+    /**
+     * Return Google OAuth login URL as JSON
+     */
+    public function getGoogleLoginUrl(): void
     {
-        $title = (string) (cfg('user.title', 'Softadastra User') ?: 'Softadastra User');
-        $this->setPageTitle($title);
+        try {
+            $authUrl = $this->google->loginUrl();
+            echo json_encode(['url' => $authUrl]);
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Impossible to generate login URL']);
+        }
 
-        // 🔹 Utiliser module_asset avec $tag=true
-        $styles  = module_asset('User/Core', 'assets/css/login.css');
-        $scripts = module_asset('User/Core', 'assets/js/login.js');
-
-        return $this->view('user::login', [
-            'title'   => $title,
-            'styles'  => $styles,
-            'scripts' => $scripts,
-        ]);
+        exit;
     }
 
+    // Exemple pour afficher le formulaire de login avec Google URL
     public function showLoginForm(): HtmlResponse
     {
         $title = (string) cfg('user.title', 'Login');
         $this->setPageTitle($title);
 
-        $styles = module_asset('User/Core', 'assets/css/login-email.css');
-        $scripts = module_asset('User/Core', 'assets/js/login-email');
+        $styles  = module_asset('Auth/Core', 'assets/css/login-email.css');
+        $scripts = module_asset('Auth/Core', 'assets/js/login-email');
 
-        return $this->view('user::auth.email', [
-            'title' => $title,
-            'styles' => $styles,
-            'scripts' => $scripts,
-            'googleUrl' => $this->google->loginUrl()
+        return $this->view('auth::email', [
+            'title'     => $title,
+            'styles'    => $styles,
+            'scripts'   => $scripts,
+            'googleUrl' => $this->google->loginUrl(),
         ]);
     }
 }
