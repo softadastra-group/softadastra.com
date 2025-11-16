@@ -61,7 +61,6 @@ final class DocsController extends Controller
                     $lang = 'php';
                 }
 
-                // Inject or merge class="language-xxx" only (no "hljs")
                 if ($lang) {
                     if (preg_match('/\bclass="([^"]*)"/i', $attrs, $cm)) {
                         $class = trim($cm[1] . ' language-' . $lang);

@@ -1,5 +1,7 @@
 <?php
 
+namespace Modules\Auth\Core\Tests;
+
 use Modules\Auth\Core\Tests\Fakes\FakeRouter;
 use PHPUnit\Framework\TestCase;
 

@@ -530,13 +530,36 @@ if (!function_exists('spa_link')) {
      */
     function spa_link(string $href, string $label, array $attrs = []): string
     {
+        // Detect external link
         $parsed = parse_url($href);
-        $isExternal = isset($parsed['host']) || str_starts_with($href, 'http') || str_starts_with($href, '//');
-        if (!$isExternal) $attrs['data-spa'] = true;
+        $isExternal = isset($parsed['host'])
+            || str_starts_with($href, 'http')
+            || str_starts_with($href, '//');
 
+        // Internal link: add SPA attribute
+        if (!$isExternal) {
+            $attrs['data-spa'] = 'true';
+
+            // Ensure class attribute exists
+            if (!isset($attrs['class'])) {
+                $attrs['class'] = 'nav-link';
+            } else {
+                $attrs['class'] .= ' nav-link';
+            }
+        }
+
+        // Build attributes
         $attrString = '';
-        foreach ($attrs as $k => $v) $attrString .= sprintf(' %s="%s"', htmlspecialchars($k), htmlspecialchars((string)$v));
-        return sprintf('<a href="%s"%s>%s</a>', htmlspecialchars($href), $attrString, htmlspecialchars($label));
+        foreach ($attrs as $k => $v) {
+            $attrString .= sprintf(' %s="%s"', htmlspecialchars($k), htmlspecialchars((string)$v));
+        }
+
+        return sprintf(
+            '<a href="%s"%s>%s</a>',
+            htmlspecialchars($href),
+            $attrString,
+            htmlspecialchars($label)
+        );
     }
 }
 

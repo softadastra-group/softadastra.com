@@ -1,8 +1,12 @@
 <?php
 
+namespace Modules\Auth\Core\Tests;
+
 use PHPUnit\Framework\TestCase;
 use App\Modules\ModuleContract;
+use Ivi\Core\Router\Router;
 use Modules\Auth\Core\Tests\Fakes\FakeRouter;
+
 
 final class ModuleTest extends TestCase
 {
@@ -44,7 +48,7 @@ final class ModuleTest extends TestCase
 
     public function testModuleBootRegistersRoutesAndViews(): void
     {
-        $router = $this->getMockBuilder(Ivi\Core\Router\Router::class)
+        $router = $this->getMockBuilder(Router::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['get', 'post'])
             ->getMock();

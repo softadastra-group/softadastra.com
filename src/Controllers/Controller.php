@@ -119,21 +119,25 @@ abstract class Controller
             throw new ViewNotFoundException($filePath);
         }
 
-        // Capture du contenu de la vue
+        // Capture du contenu fragment HTML
         $content = $this->capture(function () use ($filePath, $params) {
             if (is_array($params)) extract($params, EXTR_SKIP);
             require $filePath;
         });
 
-        // Détecte si SPA forcé (header AJAX ou paramètre)
-        $isSPA = ($this->isAjax($request) || ($params['spa'] ?? false));
+        $isAjax = $this->isAjax($request);
+        $isSPA  = ($params['spa'] ?? false);
 
-        if ($isSPA) {
-            // Retourne juste le fragment HTML si SPA
+        /**
+         * 🚀 CAS 1 : SPA + AJAX = on renvoie le fragment sans layout
+         */
+        if ($isSPA && $isAjax) {
             return new HtmlResponse($content, $status);
         }
 
-        // Sinon, envelopper avec le layout
+        /**
+         * 🚀 CAS 2 : Page normale = on enveloppe avec le layout complet
+         */
         $layout = $layoutOverride ?? $this->layout;
         $layoutPath = $this->viewsBasePath() . $layout;
 
@@ -141,43 +145,23 @@ abstract class Controller
             return new HtmlResponse($content, $status);
         }
 
+        // Capture du layout complet
         $full = $this->capture(function () use ($layoutPath, $content, $params) {
             if (!empty(self::$layoutVars)) extract(self::$layoutVars, EXTR_OVERWRITE);
             if (is_array($params)) extract($params, EXTR_OVERWRITE);
-            if (!isset($title) || $title === null || $title === '') $title = 'ivi.php';
 
-            // injecte le flag SPA et le JS global pour activer SPA automatiquement
+            if (!isset($title) || !$title) {
+                $title = 'ivi.php';
+            }
+
+            // Flag SPA pour le JS global (spa.js)
             echo '<script>window.__SPA__ = true;</script>';
-            echo <<<JS
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    if (!window.__SPA__) return;
-
-    const loadPage = async (url) => {
-        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
-        const html = await res.text();
-        document.getElementById('app').innerHTML = html;
-        history.pushState(null, '', url);
-    };
-
-    document.querySelectorAll('a[data-spa]').forEach(link => {
-        link.addEventListener('click', e => {
-            e.preventDefault();
-            loadPage(link.href);
-        });
-    });
-
-    window.addEventListener('popstate', () => loadPage(location.href));
-});
-</script>
-JS;
 
             require $layoutPath;
         });
 
         return new HtmlResponse($full, $status);
     }
-
 
 
     /**
@@ -199,11 +183,13 @@ JS;
         ?Request $request = null,
         int $status = 200
     ): HtmlResponse {
-        // Force le mode SPA si AJAX
+
+        // Active automatiquement le mode SPA pour les requêtes AJAX
         if ($request && $this->isAjax($request)) {
             $params = $params ?? [];
             $params['spa'] = true;
         }
+
         return $this->render($path, $params, $request, null, $status);
     }
 
@@ -314,7 +300,6 @@ JS;
         }
         return $out ?: '';
     }
-
 
     /** Enregistre un namespace de vues, ex: Controller::addViewNamespace('market', '/abs/path/to/views') */
     public static function addViewNamespace(string $ns, string $path): void

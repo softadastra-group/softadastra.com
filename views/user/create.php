@@ -9,62 +9,80 @@ $firstError = function (string $field) use ($errors): ?string {
     return $errors ? $errors->first($field) : null;
 };
 ?>
-<h1>New user</h1>
+<div class="users container py-4">
+    <div class="card p-4 shadow-sm">
+        <h1 class="text-center mb-4">New User</h1>
 
-<?php if ($errors && !$errors->isEmpty()): ?>
-    <div style="background:#fee;border:1px solid #f99;padding:10px;margin:10px 0;">
-        <strong>There were some problems with your input:</strong>
-        <ul style="margin:8px 0 0 16px;">
-            <?php foreach ($errors->all() as $field => $messages): ?>
-                <?php foreach ($messages as $m): ?>
-                    <li><?= htmlspecialchars("{$field}: {$m}", ENT_QUOTES) ?></li>
-                <?php endforeach; ?>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-<?php endif; ?>
-
-<form action="/users" method="post" novalidate>
-    <div style="margin-bottom:10px;">
-        <label>Name</label><br>
-        <input
-            type="text" name="name"
-            value="<?= htmlspecialchars((string)($old['name'] ?? ''), ENT_QUOTES) ?>"
-            required>
-        <?php if ($e = $firstError('name')): ?>
-            <div style="color:#c00;font-size:0.9em;"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
+        <?php if ($errors && !$errors->isEmpty()): ?>
+            <div class="alert alert-danger">
+                <strong>There were some problems with your input:</strong>
+                <ul class="mb-0 mt-2">
+                    <?php foreach ($errors->all() as $field => $messages): ?>
+                        <?php foreach ($messages as $m): ?>
+                            <li><?= htmlspecialchars("{$field}: {$m}", ENT_QUOTES) ?></li>
+                        <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
         <?php endif; ?>
-    </div>
 
-    <div style="margin-bottom:10px;">
-        <label>Email</label><br>
-        <input
-            type="email" name="email"
-            value="<?= htmlspecialchars((string)($old['email'] ?? ''), ENT_QUOTES) ?>"
-            required>
-        <?php if ($e = $firstError('email')): ?>
-            <div style="color:#c00;font-size:0.9em;"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
-        <?php endif; ?>
-    </div>
+        <form action="/users" method="post" novalidate class="needs-validation">
 
-    <div style="margin-bottom:10px;">
-        <label>Password</label><br>
-        <input type="password" name="password" required>
-        <?php if ($e = $firstError('password')): ?>
-            <div style="color:#c00;font-size:0.9em;"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
-        <?php endif; ?>
-    </div>
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input
+                    type="text"
+                    name="name"
+                    class="form-control <?= $firstError('name') ? 'is-invalid' : '' ?>"
+                    value="<?= htmlspecialchars((string)($old['name'] ?? ''), ENT_QUOTES) ?>"
+                    required>
+                <?php if ($e = $firstError('name')): ?>
+                    <div class="invalid-feedback"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
+                <?php endif; ?>
+            </div>
 
-    <div style="margin-bottom:14px;">
-        <label>
-            <input type="checkbox" name="active" value="1"
-                <?= array_key_exists('active', $old ?? []) ? 'checked' : '' ?>> Active
-        </label>
-        <?php if ($e = $firstError('active')): ?>
-            <div style="color:#c00;font-size:0.9em;"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
-        <?php endif; ?>
-    </div>
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input
+                    type="email"
+                    name="email"
+                    class="form-control <?= $firstError('email') ? 'is-invalid' : '' ?>"
+                    value="<?= htmlspecialchars((string)($old['email'] ?? ''), ENT_QUOTES) ?>"
+                    required>
+                <?php if ($e = $firstError('email')): ?>
+                    <div class="invalid-feedback"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
+                <?php endif; ?>
+            </div>
 
-    <button type="submit">Create</button>
-    <a href="/users">Cancel</a>
-</form>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input
+                    type="password"
+                    name="password"
+                    class="form-control <?= $firstError('password') ? 'is-invalid' : '' ?>"
+                    required>
+                <?php if ($e = $firstError('password')): ?>
+                    <div class="invalid-feedback"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
+                <?php endif; ?>
+            </div>
+
+            <div class="form-check mb-3">
+                <input type="checkbox"
+                    name="active"
+                    value="1"
+                    class="form-check-input"
+                    id="activeCheck"
+                    <?= array_key_exists('active', $old ?? []) ? 'checked' : '' ?>>
+                <label class="form-check-label" for="activeCheck">Active</label>
+                <?php if ($e = $firstError('active')): ?>
+                    <div class="invalid-feedback d-block"><?= htmlspecialchars($e, ENT_QUOTES) ?></div>
+                <?php endif; ?>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <a href="/users" class="btn btn-secondary" data-spa>Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
