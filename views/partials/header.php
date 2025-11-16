@@ -1,17 +1,56 @@
-<header class="nav" data-header>
-    <div class="container nav-row">
-        <a class="nav-brand" href="/">
-            <img src="<?= asset('assets/logo/ivi.png') ?>" alt="ivi.php logo" width="26" height="26">
-            <span>ivi.php</span>
+<header class="nav py-3 bg-light shadow-sm" data-header>
+    <div class="container d-flex justify-content-between align-items-center flex-wrap">
+
+        <!-- Brand -->
+        <a class="nav-brand d-flex align-items-center text-decoration-none" href="/" data-spa>
+            <img src="<?= asset('assets/logo/ivi.png') ?>" alt="ivi.php logo" width="26" height="26" class="me-2">
+            <span class="fw-bold fs-5 text-dark">ivi.php</span>
         </a>
 
-        <?= menu([
-            '/'         => 'Home',
-            '/docs'     => 'Docs',
-            '/users'    => 'Users',
-            '/auth' => 'Auth',
-        ], ['class' => 'nav-links']) ?>
+        <!-- Menu toggle for mobile -->
+        <button class="btn btn-sm btn-outline-secondary d-md-none" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+            ☰
+        </button>
 
-        <span class="nav-pill"><?= htmlspecialchars($_ENV['IVI_VERSION'] ?? 'v0.1.0 • DEV') ?></span>
+        <!-- Nav links -->
+        <nav class="collapse d-md-flex justify-content-center flex-grow-1" id="navMenu">
+            <?= menu([
+                '/'        => 'Home',
+                '/docs'    => 'Docs',
+                '/users'   => 'Users',
+                '/auth'    => 'Auth',
+            ], ['class' => 'nav-links d-flex flex-column flex-md-row gap-3 my-2 my-md-0']) ?>
+        </nav>
+
+        <!-- Version pill -->
+        <span class="nav-pill badge bg-secondary text-light mt-2 mt-md-0">
+            <?= htmlspecialchars($_ENV['IVI_VERSION'] ?? 'v0.1.0 • DEV') ?>
+        </span>
     </div>
 </header>
+
+<style>
+    /* Nav base styling */
+    .nav {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        background-color: var(--bg, #f8f9fa);
+    }
+
+    .nav-links a {
+        text-decoration: none;
+        color: var(--fg, #212529);
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+        color: var(--accent, #008037);
+    }
+
+    .nav-pill {
+        font-size: 0.8rem;
+        padding: 0.25em 0.5em;
+    }
+</style>

@@ -76,3 +76,4 @@ build/
 public/modules/*
 !public/modules/.gitignore
 modules/User/Core/Repositories/new.sql
+db/
