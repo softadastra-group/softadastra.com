@@ -20,7 +20,7 @@
         </p>
 
         <div class="mb-4 d-flex justify-content-center gap-3 flex-wrap">
-            <a class="btn btn-lg btn-primary" href="/docs" rel="noopener">Get Started</a>
+            <a class="btn btn-lg btn-primary" href="/docs" rel="noopener" data-spa>Get Started</a>
             <a class="btn btn-lg btn-outline-secondary" href="https://github.com/iviphp/ivi" target="_blank" rel="noopener">View on GitHub</a>
         </div>
 
