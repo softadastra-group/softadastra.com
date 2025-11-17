@@ -568,3 +568,71 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* === Inputs === */
+.sa-input {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border-radius: 24px;
+  border: 1px solid #d1d5db;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+  background-color: #ffffff; /* fond blanc */
+  color: #1c1c1c;
+}
+
+.sa-input:focus {
+  outline: none;
+  border-color: #ff9900;
+  box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.2);
+}
+
+/* === Password container === */
+.sa-password {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.sa-password input.sa-input {
+  flex: 1;
+  border-radius: 24px;
+}
+
+/* toggle password */
+.sa-password__toggle {
+  position: absolute;
+  right: 0.8rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sa-password__toggle:hover {
+  color: #ff9900;
+}
+
+/* bouton principal Softadastra */
+.sa-btn--primary {
+  background-color: #ff9900;
+  color: #ffffff;
+  border-radius: 24px;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.sa-btn--primary:hover {
+  background-color: #e68a00;
+  box-shadow: 0 4px 8px rgba(255, 153, 0, 0.3);
+}

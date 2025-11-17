@@ -16,6 +16,7 @@
 
     <!-- Global CSS -->
     <link rel="stylesheet" href="<?= asset('assets/css/app.css') ?>">
+    <link rel="stylesheet" href="<?= asset('assets/css/modal.css') ?>">
 
     <!-- Page-level CSS -->
     <?= $styles ?? '' ?>
