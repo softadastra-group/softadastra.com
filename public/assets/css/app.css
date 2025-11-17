@@ -1,36 +1,29 @@
 /* ==========================================================================
-   ivi.php — app.css (2025 improved)
-   - Clean variables, dark mode, responsive nav with hamburger
-   - Smooth transitions, top progress bar for SPA
-   - Modern cards, buttons, accessible focus styles
-   - SPA transition classes: .spa-transition-fade-in / slide-in / zoom-in
-   ========================================================================== */
+   Softadastra SPA — Unified Vinted-like Typography & Style
+   Colors adapted to Softadastra (#ff9900)
+   ========================================================================= */
 
 /* --------------------------
    DESIGN TOKENS
    -------------------------- */
 :root {
   /* Brand */
-  --accent: #008037;
-  --accent-600: #006f2b;
-  --bg: #ffffff;
-  --fg: #0f1720;
-  --muted: #55606a;
+  --accent: #ff9900; /* Softadastra orange */
+  --accent-light: rgba(255, 153, 0, 0.15);
+  --fg: rgb(21, 25, 26);
+  --muted: rgb(90, 101, 102);
   --panel: #ffffff;
-  --border: #e6e9ee;
-
-  /* Code */
-  --code-bg: #0b1220; /* dark navy */
-  --code-fg: #e6edf3;
-  --code-border: #0a101b;
-  --code-line: #0f172a;
-  --code-accent: #7dd3fc;
-
-  /* Layout */
-  --max-width: 1100px;
+  --bg: rgb(237, 242, 242); /* soft grey background */
+  --border: rgb(225, 230, 230);
   --radius: 12px;
   --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.08);
-  --glass: rgba(255, 255, 255, 0.04);
+
+  /* Code blocks */
+  --code-bg: rgb(11, 18, 32);
+  --code-fg: rgb(230, 237, 243);
+  --code-border: rgb(10, 16, 27);
+  --code-line: rgb(15, 23, 42);
+  --code-accent: #ff9900;
 }
 
 /* --------------------------
@@ -38,82 +31,154 @@
    -------------------------- */
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "V-Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 1.4rem; /* 14px */
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--fg);
+  background-color: var(--bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+
+  font-size: 1.6rem; /* 16px */
+  line-height: 1.7;
 }
 
 /* --------------------------
-   TOP PROGRESS BAR (SPA use)
+   HEADINGS
    -------------------------- */
-#spa-progress {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 3px;
-  width: 0%;
-  background: linear-gradient(90deg, var(--accent), var(--code-accent));
-  z-index: 999999;
-  transition: width 0.22s ease, opacity 0.22s ease;
-  will-change: width;
-  opacity: 0;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "V-Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--fg);
+  margin: 1.4rem 0 0.7rem 0;
 }
-#spa-progress.active {
-  opacity: 1;
+h1 {
+  font-size: 3.2rem;
+} /* ~32px */
+h2 {
+  font-size: 2.6rem;
+} /* ~26px */
+h3 {
+  font-size: 2.2rem;
+} /* ~22px */
+h4 {
+  font-size: 1.8rem;
+} /* ~18px */
+h5 {
+  font-size: 1.6rem;
+} /* ~16px */
+h6 {
+  font-size: 1.4rem;
+} /* ~14px */
+
+/* --------------------------
+   PARAGRAPHS
+   -------------------------- */
+p {
+  margin: 0 0 1.4rem 0;
+  color: var(--muted);
 }
 
 /* --------------------------
-   MAIN / CONTENT
+   LINKS
    -------------------------- */
-main#app {
-  flex: 1;
-  padding: 28px 0;
-  width: 100%;
-}
-
-/* Sections / grid */
-.section {
-  padding: 28px 20px;
-}
-.grid {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: repeat(12, 1fr);
-}
-.cols-3 > * {
-  grid-column: span 12;
-}
-@media (min-width: 760px) {
-  .cols-3 > * {
-    grid-column: span 4;
-  }
-}
-
-/* Card */
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease,
-    border-color 0.15s ease;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
-}
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.08);
-  border-color: transparent;
-}
-
-/* Buttons */
-.btn {
-  display: inline-block;
-  padding: 12px 18px;
-  border-radius: 12px;
-  background: var(--accent);
-  color: #fff;
+a {
+  color: var(--accent);
   text-decoration: none;
-  font-weight: 800;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+a:hover,
+a:focus {
+  color: darkorange;
+  text-decoration: underline;
+}
+
+/* --------------------------
+   STRONG / ITALIC / SMALL
+   -------------------------- */
+strong {
+  font-weight: 700;
+  color: var(--fg);
+}
+em {
+  font-style: italic;
+  color: var(--muted);
+}
+small {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+/* --------------------------
+   LISTS
+   -------------------------- */
+ul,
+ol {
+  margin: 0 0 1.4rem 1.6rem;
+  padding: 0;
+  color: var(--muted);
+}
+li {
+  margin-bottom: 0.6rem;
+}
+
+/* --------------------------
+   HIGHLIGHTS / SPAN
+   -------------------------- */
+span.highlight {
+  background-color: var(--accent-light);
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* --------------------------
+   BLOCKQUOTE
+   -------------------------- */
+blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 1.4rem 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* --------------------------
+   BUTTONS
+   -------------------------- */
+button,
+.btn {
+  font-family: "V-Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: #fff;
+  background: var(--accent);
+  border-radius: var(--radius);
   border: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  text-align: center;
   transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
+button:hover,
 .btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
@@ -125,11 +190,97 @@ main#app {
 }
 .btn-lg {
   padding: 14px 20px;
-  border-radius: 14px;
 }
 
 /* --------------------------
-   CODE BLOCKS & PRE
+   CARDS
+   -------------------------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.08);
+  border-color: transparent;
+}
+
+/* --------------------------
+   INPUTS / TEXTAREA / SELECT
+   -------------------------- */
+input,
+textarea,
+select {
+  font-family: "V-Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 1.4rem;
+  color: var(--fg);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* --------------------------
+   NAVIGATION
+   -------------------------- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: var(--bg);
+  padding: 12px 20px;
+}
+.nav-links a {
+  text-decoration: none;
+  color: var(--fg);
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+.nav-links a:hover {
+  color: var(--accent);
+}
+
+/* --------------------------
+   FOOTER
+   -------------------------- */
+footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 14px;
+}
+footer .foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 20px;
+}
+footer .foot-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+footer a.link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+footer a.link:hover,
+footer a.link.active {
+  color: darkorange;
+  text-decoration: underline;
+}
+
+/* --------------------------
+   CODE BLOCKS
    -------------------------- */
 pre {
   background: var(--code-bg);
@@ -144,7 +295,7 @@ pre {
   margin: 18px 0;
 }
 code {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 153, 0, 0.1);
   color: var(--accent);
   padding: 2px 6px;
   border-radius: 6px;
@@ -152,50 +303,30 @@ code {
 }
 
 /* --------------------------
-   FOOTER
+   SPA / Helpers
    -------------------------- */
-footer {
-  margin-top: auto;
-  border-top: 1px solid var(--border);
-  background: var(--panel);
+.text-muted {
   color: var(--muted);
 }
-footer .foot {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 14px 20px;
-  font-size: 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+.text-primary {
+  color: var(--accent);
 }
-.foot .foot-links {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+.text-center {
+  text-align: center;
 }
-@media (max-width: 640px) {
-  footer .foot {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .foot .foot-links {
-    width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
+.text-right {
+  text-align: right;
+}
+.text-left {
+  text-align: left;
 }
 
-/* --------------------------
-   ACCESSIBILITY / MOTION
-   -------------------------- */
 :focus-visible {
-  outline: 3px solid rgba(0, 128, 55, 0.18);
+  outline: 3px solid rgba(255, 153, 0, 0.25);
   outline-offset: 3px;
   border-radius: 6px;
 }
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
@@ -204,278 +335,3 @@ footer .foot {
     scroll-behavior: auto !important;
   }
 }
-
-/* --------------------------
-   UTILS
-   -------------------------- */
-.text-muted {
-  color: var(--muted);
-}
-.hstack {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.vstack {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* --------------------------
-   SPA TRANSITIONS (classes used by spa.js)
-   -------------------------- */
-/* Fade */
-.spa-transition-fade-in {
-  animation: spa-fade-in 0.28s ease both;
-}
-@keyframes spa-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Slide */
-.spa-transition-slide-in {
-  animation: spa-slide-in 0.32s cubic-bezier(0.2, 0.9, 0.2, 1) both;
-}
-@keyframes spa-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(10px) scale(0.995);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-/* Zoom */
-.spa-transition-zoom-in {
-  animation: spa-zoom-in 0.28s cubic-bezier(0.2, 0.9, 0.2, 1) both;
-}
-@keyframes spa-zoom-in {
-  from {
-    opacity: 0;
-    transform: scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* --------------------------
-   SMALL FIXES / FALLBACKS
-   -------------------------- */
-/* Ensure clickable anchors inside nav are visually consistent */
-.nav a,
-.nav button {
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
-}
-
-/* Prevent layout shift when cards border becomes transparent */
-.card {
-  border: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-/* Helpers for hiding/showing */
-.hide {
-  display: none !important;
-}
-
-footer {
-  margin-top: auto;
-  border-top: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 14px;
-}
-
-footer .foot {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 14px 20px;
-}
-
-footer .foot-links {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-footer .foot-links .separator {
-  margin: 0 4px;
-  color: var(--muted);
-}
-
-footer a.link {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 600;
-  transition: color 0.15s ease;
-}
-
-footer a.link:hover,
-footer a.link.active {
-  color: #005b25;
-  text-decoration: underline;
-}
-
-@media (max-width: 640px) {
-  footer .foot {
-    flex-direction: column;
-    text-align: center;
-    gap: 6px;
-  }
-}
-/* ==========================================================================
-   CODE BLOCKS — Enhanced for Markdown & SPA
-   ========================================================================== */
-.code-block {
-  position: relative;
-  margin: 24px 0;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--code-bg);
-  border: 1px solid var(--code-border);
-  box-shadow: var(--shadow-sm);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.code-block:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-}
-
-/* Header: language badge + copy button */
-.code-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: color-mix(in oklab, var(--code-bg) 85%, #000 15%);
-  border-bottom: 1px solid var(--code-border);
-}
-.lang-badge {
-  text-transform: uppercase;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--code-accent);
-  letter-spacing: 0.5px;
-}
-
-/* Copy button */
-.copy-btn {
-  appearance: none;
-  border: none;
-  background: var(--code-accent);
-  color: var(--code-bg);
-  font-weight: 700;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.copy-btn:hover {
-  filter: brightness(1.06);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-}
-.copy-btn.copied {
-  background: #10b981;
-  color: #fff;
-}
-.copy-btn.copied::after {
-  content: " ✓ Copied!";
-  margin-left: 4px;
-  font-weight: 600;
-}
-
-/* Pre / Code area */
-.code-block pre {
-  margin: 0;
-  padding: 14px;
-  overflow-x: auto;
-  font-size: 13.5px;
-  line-height: 1.6;
-  background: transparent;
-  color: var(--code-fg);
-}
-.code-block pre code {
-  display: block;
-  white-space: pre;
-}
-
-/* Zebra stripes if .line exists */
-.code-block pre code .line:nth-child(odd) {
-  background: var(--code-line);
-  display: block;
-  padding-left: 0.5rem;
-}
-
-/* Inline code inside markdown */
-.markdown-body code:not(pre code) {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--accent);
-  padding: 2px 6px;
-  border-radius: 6px;
-  font-size: 0.95em;
-}
-
-/* Text selection */
-.code-block ::selection {
-  background: color-mix(in oklab, var(--code-accent) 35%, transparent);
-}
-
-/* Light mode overrides */
-@media (prefers-color-scheme: light) {
-  .code-block {
-    background: #f5f7fa;
-    border: 1px solid #d1d5db;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
-  }
-  .code-head {
-    background: rgba(0, 0, 0, 0.02);
-    color: #111827;
-  }
-  .lang-badge {
-    color: var(--accent);
-  }
-  .copy-btn {
-    background: var(--accent);
-    color: #fff;
-  }
-  .copy-btn.copied {
-    background: #10b981;
-  }
-  .code-block pre {
-    color: #1f2937;
-  }
-  .code-block pre code .line:nth-child(odd) {
-    background: rgba(0, 0, 0, 0.03);
-  }
-}
-
-main#app {
-  flex: 1 0 auto; /* prend tout l'espace restant */
-}
-
-footer {
-  flex-shrink: 0; /* évite que le footer soit écrasé */
-}
-
-/* --------------------------
-   END
-   -------------------------- */

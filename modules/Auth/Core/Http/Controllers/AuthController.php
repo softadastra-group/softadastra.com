@@ -47,12 +47,12 @@ class AuthController extends Controller
         $this->setPageTitle($title);
 
         $styles  = module_asset('Auth/Core', 'assets/css/login.css');
-        $scripts = module_asset('Auth/Core', 'assets/js/login.js');
+        // $scripts = module_asset('Auth/Core', 'assets/js/login.js');
 
         return $this->view('auth::login', [
             'title'     => $title,
             'styles'    => $styles,
-            'scripts'   => $scripts,
+            // 'scripts'   => $scripts,
             'googleUrl' => $this->google->loginUrl(),
         ]);
     }
@@ -63,12 +63,12 @@ class AuthController extends Controller
         $this->setPageTitle($title);
 
         $styles  = module_asset('Auth/Core', 'assets/css/register.css');
-        $scripts = module_asset('Auth/Core', 'assets/js/register.js');
+        // $scripts = module_asset('Auth/Core', 'assets/js/register.js');
 
         return $this->view('auth::register', [
             'title'     => $title,
             'styles'    => $styles,
-            'scripts'   => $scripts,
+            // 'scripts'   => $scripts,
             'googleUrl' => $this->google->loginUrl(),
         ]);
     }
