@@ -15,9 +15,14 @@ class AuthController extends Controller
 
     public function __construct()
     {
-        $config = config('google');
-        if (!is_array($config)) {
-            throw new \RuntimeException('Google configuration not found. Make sure config/google.php exists and returns an array.');
+        // Récupère la configuration Google via le helper global
+        $config = config_value('google');
+
+        if (!$config || !is_array($config)) {
+            throw new \RuntimeException(
+                "Google configuration not found. " .
+                    "Ensure config/google.php exists and returns an array."
+            );
         }
 
         $this->google = new GoogleService($config);
@@ -26,17 +31,17 @@ class AuthController extends Controller
     /**
      * Return Google OAuth login URL as JSON
      */
-    public function getGoogleLoginUrl(): void
-    {
-        try {
-            $authUrl = $this->google->loginUrl();
-            echo json_encode(['url' => $authUrl]);
-        } catch (Exception $e) {
-            echo json_encode(['error' => 'Impossible to generate login URL']);
-        }
+    // public function getGoogleLoginUrl(): void
+    // {
+    //     try {
+    //         $authUrl = $this->google->loginUrl();
+    //         echo json_encode(['url' => $authUrl]);
+    //     } catch (Exception $e) {
+    //         echo json_encode(['error' => 'Impossible to generate login URL']);
+    //     }
 
-        exit;
-    }
+    //     exit;
+    // }
 
     // Exemple pour afficher le formulaire de login avec Google URL
     public function showLoginForm(): HtmlResponse
@@ -47,11 +52,11 @@ class AuthController extends Controller
         $styles  = module_asset('Auth/Core', 'assets/css/login-email.css');
         $scripts = module_asset('Auth/Core', 'assets/js/login-email');
 
-        return $this->view('auth::email', [
+        return $this->view('auth::login', [
             'title'     => $title,
             'styles'    => $styles,
             'scripts'   => $scripts,
-            'googleUrl' => $this->google->loginUrl(),
+            'googleUrl' => $this->google,
         ]);
     }
 }
