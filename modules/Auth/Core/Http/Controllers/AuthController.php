@@ -15,7 +15,6 @@ class AuthController extends Controller
 
     public function __construct()
     {
-        // Récupère la configuration Google via le helper global
         $config = config_value('google');
 
         if (!$config || !is_array($config)) {
@@ -28,35 +27,49 @@ class AuthController extends Controller
         $this->google = new GoogleService($config);
     }
 
-    /**
-     * Return Google OAuth login URL as JSON
-     */
-    // public function getGoogleLoginUrl(): void
-    // {
-    //     try {
-    //         $authUrl = $this->google->loginUrl();
-    //         echo json_encode(['url' => $authUrl]);
-    //     } catch (Exception $e) {
-    //         echo json_encode(['error' => 'Impossible to generate login URL']);
-    //     }
+    public function home(): HtmlResponse
+    {
+        $title = (string) cfg('user.title', 'Login');
+        $this->setPageTitle($title);
 
-    //     exit;
-    // }
+        $styles  = module_asset('Auth/Core', 'assets/css/home.css');
 
-    // Exemple pour afficher le formulaire de login avec Google URL
+        return $this->view('auth::home', [
+            'title'     => $title,
+            'styles'    => $styles,
+            'googleUrl' => $this->google->loginUrl(),
+        ]);
+    }
+
     public function showLoginForm(): HtmlResponse
     {
         $title = (string) cfg('user.title', 'Login');
         $this->setPageTitle($title);
 
-        $styles  = module_asset('Auth/Core', 'assets/css/login-email.css');
-        $scripts = module_asset('Auth/Core', 'assets/js/login-email');
+        $styles  = module_asset('Auth/Core', 'assets/css/login.css');
+        $scripts = module_asset('Auth/Core', 'assets/js/login.js');
 
         return $this->view('auth::login', [
             'title'     => $title,
             'styles'    => $styles,
             'scripts'   => $scripts,
-            'googleUrl' => $this->google,
+            'googleUrl' => $this->google->loginUrl(),
+        ]);
+    }
+
+    public function showRegistrationForm(): HtmlResponse
+    {
+        $title = (string) cfg('user.title', 'Login');
+        $this->setPageTitle($title);
+
+        $styles  = module_asset('Auth/Core', 'assets/css/register.css');
+        $scripts = module_asset('Auth/Core', 'assets/js/register.js');
+
+        return $this->view('auth::register', [
+            'title'     => $title,
+            'styles'    => $styles,
+            'scripts'   => $scripts,
+            'googleUrl' => $this->google->loginUrl(),
         ]);
     }
 }

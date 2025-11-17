@@ -18,7 +18,7 @@ use Modules\Auth\Core\Http\Controllers\AuthController;
 // $router->get('/user/api/auth/me', [AuthController::class, 'me']);
 // $router->get('/user/google-login-url', [AuthController::class, 'getGoogleLoginUrl']);
 
-$router->get('/auth', [HomeController::class, 'index']);
+$router->get('/auth', [AuthController::class, 'home']);
 
 // Login
 $router->get('/auth/login', [AuthController::class, 'showLoginForm']);
