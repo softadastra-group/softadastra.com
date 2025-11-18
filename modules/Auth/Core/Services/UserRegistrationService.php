@@ -7,6 +7,7 @@ namespace Modules\Auth\Core\Services;
 use Ivi\Core\Utils\FlashMessage;
 use Ivi\Http\JsonResponse;
 use Modules\Auth\Core\Factories\UserFactory;
+use Modules\Auth\Core\Helpers\AuthUser;
 use Modules\Auth\Core\Helpers\UserHelper;
 use Modules\Auth\Core\Repositories\UserRepository;
 use Modules\Auth\Core\Validator\UserValidator;
@@ -22,7 +23,6 @@ class UserRegistrationService extends BaseService
         parent::__construct($repository);
         $this->auth = $auth;
     }
-
 
     public function register(string $fullname, string $email, string $password, string $phone): array
     {
@@ -113,6 +113,9 @@ class UserRegistrationService extends BaseService
 
             // ---- 9) Auth / token
             $token = $this->auth->issueAuthForUser($savedUser);
+
+            // ---- 9b) Crée la session + cookie comme dans le login
+            AuthUser::setSessionAndCookie($savedUser, $token);
 
             // ---- 10) Redirect
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/'));

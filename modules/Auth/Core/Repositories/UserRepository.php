@@ -21,8 +21,6 @@ class UserRepository extends Repository
         return User::class;
     }
 
-
-
     /**
      * Récupère un utilisateur par ID avec ses rôles et infos complémentaires
      */
@@ -75,6 +73,7 @@ class UserRepository extends Repository
         $userRow = User::query()
             ->where('email = ?', $emailStr)
             ->first();
+        error_log('Fetched userRow: ' . json_encode($userRow));
 
         if (!$userRow) return null;
 
@@ -182,8 +181,6 @@ class UserRepository extends Repository
     //     ->where('user_id = ?', $user->getId())
     //     ->delete();
 
-
-
     public function delete(int $id): void
     {
         $user = $this->find($id);
@@ -193,20 +190,15 @@ class UserRepository extends Repository
     }
 
     /**
-     * Crée un utilisateur avec ses rôles.
-     *
-     * @param array $data Données utilisateur (associatif)
-     * @param array<string|Role> $roles Liste de rôles en objets Role ou en noms de rôle
-     * @return User
+     * Crée un utilisateur avec ses rôles déjà présents dans $user->getRoles()
      */
-    public function createWithRoles(User $user, array $roles = []): User
+    public function createWithRoles(User $user): User
     {
         try {
-            // Insert utilisateur
+            // Insert utilisateur (insert retourne déjà l’ID)
             $userId = (int) User::query()->insert($user->toArray());
             $user->setId($userId);
         } catch (\PDOException $e) {
-            // Gestion du cas "duplicate entry"
             if ($e->getCode() === '23000') {
                 throw new \RuntimeException('Email already exists.');
             }
@@ -214,30 +206,28 @@ class UserRepository extends Repository
         }
 
         // Insert roles pivot
-        foreach ($roles as $role) {
+        foreach ($user->getRoles() as $role) {
             QueryBuilder::table('user_roles')->insert([
                 'user_id' => $userId,
                 'role_id' => $role->getId()
             ]);
-            $user->addRole($role);
         }
 
         return $user;
     }
 
     /**
-     * Sauvegarde un utilisateur (INSERT ou UPDATE selon existence de l'ID)
+     * Sauvegarde un utilisateur (INSERT ou UPDATE)
      */
     public function save(User $user): User
     {
         if ($user->getId()) {
-            // UPDATE seulement
             $this->update($user);
             return $user;
         }
 
-        // INSERT avec gestion des rôles
-        return $this->createWithRoles($user, $user->getRoles());
+        // Nouvel utilisateur → gestion rôles
+        return $this->createWithRoles($user);
     }
 
     /**
@@ -245,9 +235,10 @@ class UserRepository extends Repository
      */
     public function update(User $user): void
     {
-        // On utilise save() de l’ORM Model qui fait UPDATE automatiquement
+        // update via ORM
         $user->save();
     }
+
 
 
     /**

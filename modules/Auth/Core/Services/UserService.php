@@ -42,6 +42,7 @@ class UserService extends BaseService
 
     public function loginUser(User $user): string
     {
+        error_log("loginUser() called for user ID: " . $user->getId() . " | email: " . $user->getEmail());
         // Génère seulement le token
         return AuthUser::generateToken($user);
     }
