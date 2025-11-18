@@ -2,6 +2,7 @@
 
 namespace Modules\Auth\Core\Factories;
 
+use Modules\Auth\Core\Helpers\UserHelper;
 use Modules\Auth\Core\Models\User;
 use Modules\Auth\Core\ValueObjects\Email;
 use Modules\Auth\Core\ValueObjects\Role;
@@ -36,24 +37,26 @@ class UserFactory
             }
         }
 
+        $username = $data['username'] ?? strtolower(preg_replace('/\s+/', '', $data['fullname'] ?? 'user'));
+
         return new User(
-            $data['id'] ?? 0,
             $data['fullname'] ?? '',
             $email,
             $data['photo'] ?? null,
             $data['password'] ?? null,
             $roles,
             $data['status'] ?? 'active',
-            $data['verifiedEmail'] ?? false,
+            (int) ($data['verifiedEmail'] ?? 0),
             $data['coverPhoto'] ?? null,
             $data['accessToken'] ?? null,
             $data['refreshToken'] ?? null,
             $data['bio'] ?? null,
             $data['phone'] ?? null,
-            $data['username'] ?? null,
+            $username, // <--- ici
             $data['cityName'] ?? null,
             $data['countryName'] ?? null,
-            $data['countryImageUrl'] ?? null
+            $data['countryImageUrl'] ?? null,
+            $data['id'] ?? null
         );
     }
 
@@ -68,7 +71,14 @@ class UserFactory
     {
         $roles = [];
         foreach ($rolesDB as $r) {
-            $roles[] = new Role($r['id'], $r['name']);
+            if (isset($r['id'], $r['name'])) {
+                $roles[] = new Role((int)$r['id'], $r['name']);
+            }
+        }
+
+        // Si aucun rôle récupéré depuis la DB, assigner le rôle par défaut
+        if (empty($roles)) {
+            $roles[] = UserHelper::defaultRole();
         }
 
         return self::createFromArray([

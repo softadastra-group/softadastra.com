@@ -9,7 +9,7 @@ use Modules\Auth\Core\ValueObjects\Role;
 
 class User extends Model
 {
-    private int $id;
+    private ?int $id;
     private string $fullname;
     private Email $email;
     private ?string $photo = null;
@@ -55,7 +55,6 @@ class User extends Model
     ];
 
     public function __construct(
-        int $id,
         string $fullname,
         Email $email,
         ?string $photo = null,
@@ -71,7 +70,8 @@ class User extends Model
         ?string $username = null,
         ?string $cityName = null,
         ?string $countryName = null,
-        ?string $countryImageUrl = null
+        ?string $countryImageUrl = null,
+        ?int $id = null  // ← déplacer à la fin
     ) {
         $this->id = $id;
         $this->fullname = $fullname;
@@ -79,7 +79,7 @@ class User extends Model
         $this->photo = $photo;
         $this->password = $password;
         $this->roles = $roles;
-        $this->updateRoleNames(); // met à jour roleNames et roleId principal
+        $this->updateRoleNames();
         $this->status = $status;
         $this->verifiedEmail = $verifiedEmail;
         $this->coverPhoto = $coverPhoto;
@@ -93,6 +93,47 @@ class User extends Model
         $this->countryImageUrl = $countryImageUrl;
         $this->createdAt = new DateTimeImmutable();
         $this->updatedAt = new DateTimeImmutable();
+
+        $this->attributes = [
+            'fullname'       => $fullname,
+            'email'          => (string)$this->email,
+            'photo'          => $photo,
+            'password'       => $password,
+            'role_id'        => $this->roles[0]->getId() ?? null,
+            'status'         => $status,
+            'verified_email' => $verifiedEmail,
+            'cover_photo'    => $coverPhoto,
+            'access_token'   => $accessToken,
+            'refresh_token'  => $refreshToken,
+            'bio'            => $bio,
+            'phone'          => $phone,
+            'username'       => $username
+        ];
+
+        // Synchroniser l’ID avec les attributs
+        $this->id = $this->attributes['id'] ?? null;
+    }
+
+    public function getAttributes(): array
+    {
+        return [
+            'fullname'       => $this->fullname,
+            'email'          => (string) $this->email, // <- ici
+            'username'       => $this->username,
+            'password'       => $this->password,
+            'status'         => $this->status,
+            'verified_email' => (int) $this->verifiedEmail,
+            'photo'          => $this->photo,
+            'cover_photo'    => $this->coverPhoto,
+            'access_token'   => $this->accessToken,
+            'refresh_token'  => $this->refreshToken,
+            'bio'            => $this->bio,
+            'phone'          => $this->phone,
+            'city_name'      => $this->cityName,
+            'country_name'   => $this->countryName,
+            'country_image_url' => $this->countryImageUrl,
+            'id'             => $this->id,
+        ];
     }
 
     // --- Gestion des rôles ---
@@ -189,8 +230,13 @@ class User extends Model
     // --- Getters / Setters type-safe ---
     public function getId(): int
     {
-        return $this->id;
+        return $this->id ?? 0;
     }
+    public function setId(int $id): void
+    {
+        $this->id = $id;
+    }
+
     public function getFullname(): string
     {
         return $this->fullname;

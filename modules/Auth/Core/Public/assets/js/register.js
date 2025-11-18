@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
-  const phoneInput = document.getElementById("phone_number");
-  const phoneError = document.getElementById("phone_number_error");
+  const phoneInput = document.getElementById("phone");
+  const phoneError = document.getElementById("phone_error");
   const flagIcon = document.getElementById("flag-icon");
   const countryDropdown = document.getElementById("country-dropdown");
   const phoneWrapper = document.getElementById("phone-wrapper");
@@ -115,224 +115,232 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
 */
 
   // --- Form submit (jQuery) ---
-  $("#registerForm").on("submit", function (event) {
-    event.preventDefault();
+  $(function () {
+    $("#registerForm").on("submit", function (event) {
+      event.preventDefault();
 
-    const $submitBtn = $("#custom-login-login");
-    const $spinner = $submitBtn.find(".btn-spinner");
-    const $btnText = $submitBtn.find(".btn-text");
-    const emailGroup = document.getElementById("email-group");
-
-    // Normalise avant d'envoyer
-    const raw = phoneInput.value;
-    const e164 = normalizePhoneE164(raw);
-    phoneInput.value = e164; // on poste la version normalisée
-    updateFlag(e164);
-
-    // ✅ ANALYTICS: tentative d'inscription (avant validation)
-    if (window.SA && typeof SA.event === "function") {
-      SA.event("auth_register_submit", { method: "email+password+phone" });
-    }
-
-    const valid = isValidUG(e164) || isValidCD(e164);
-    if (!valid) {
-      phoneError.textContent =
-        "Enter a valid number: +256 7XXXXXXXX (Uganda) or +243 XXXXXXXXX (DRC)";
-      phoneInput.classList.add("input-error");
-      emailGroup.style.marginTop = "50px";
-      $submitBtn.prop("disabled", false);
-      $spinner.hide();
-      $btnText.show();
-
-      // ✅ ANALYTICS: erreur de validation côté client (téléphone)
-      if (window.SA && typeof SA.event === "function") {
-        SA.event("auth_register_error", {
-          method: "email+password+phone",
-          reason: "invalid_phone",
-        });
+      const $submitBtn = $("#registerForm button[type='submit']");
+      let $spinner = $submitBtn.find(".btn-spinner");
+      if (!$spinner.length) {
+        $spinner = $(
+          "<span class='btn-spinner' style='display:none'></span>"
+        ).appendTo($submitBtn);
       }
-      return;
-    } else {
-      phoneError.textContent = "";
-      phoneInput.classList.remove("input-error");
-      emailGroup.style.marginTop = "";
-    }
+      const $btnText = $submitBtn.find(".btn-text");
 
-    $submitBtn.prop("disabled", true);
-    $btnText.hide();
-    $spinner.show();
+      const emailGroup = document.getElementById("email-group");
 
-    const formData = $(this).serialize();
+      // Normalise avant d'envoyer
+      const raw = phoneInput.value;
+      const e164 = normalizePhoneE164(raw);
+      phoneInput.value = e164; // on poste la version normalisée
+      updateFlag(e164);
 
-    $.ajax({
-      url: "/register",
-      type: "POST",
-      data: formData,
-      dataType: "json",
+      // ✅ ANALYTICS: tentative d'inscription (avant validation)
+      if (window.SA && typeof SA.event === "function") {
+        SA.event("auth_register_submit", { method: "email+password+phone" });
+      }
 
-      success: function (data, textStatus, jqXHR) {
+      const valid = isValidUG(e164) || isValidCD(e164);
+      if (!valid) {
+        phoneError.textContent =
+          "Enter a valid number: +256 7XXXXXXXX (Uganda) or +243 XXXXXXXXX (DRC)";
+        phoneInput.classList.add("input-error");
+        emailGroup.style.marginTop = "50px";
+        $submitBtn.prop("disabled", false);
         $spinner.hide();
         $btnText.show();
-        $submitBtn.prop("disabled", false);
 
-        const isCreated =
-          jqXHR.status === 201 || !!data?.token || !!data?.redirect;
+        // ✅ ANALYTICS: erreur de validation côté client (téléphone)
+        if (window.SA && typeof SA.event === "function") {
+          SA.event("auth_register_error", {
+            method: "email+password+phone",
+            reason: "invalid_phone",
+          });
+        }
+        return;
+      } else {
+        phoneError.textContent = "";
+        phoneInput.classList.remove("input-error");
+        emailGroup.style.marginTop = "";
+      }
 
-        if (isCreated) {
-          // ✅ ANALYTICS: succès d'inscription
+      $submitBtn.prop("disabled", true);
+      $btnText.hide();
+      $spinner.show();
+
+      const formData = $(this).serialize();
+
+      $.ajax({
+        url: "/auth/register",
+        type: "POST",
+        data: formData,
+        dataType: "json",
+
+        success: function (data, textStatus, jqXHR) {
+          $spinner.hide();
+          $btnText.show();
+          $submitBtn.prop("disabled", false);
+
+          // ✅ Seul le 201 ou l'absence d'erreurs signifie succès
+          if (jqXHR.status === 201 && !data.errors) {
+            if (window.SA && typeof SA.event === "function") {
+              SA.event("auth_register_success", {
+                method: "email+password+phone",
+              });
+            }
+
+            localStorage.setItem("justRegistered", "true");
+            const to = data?.redirect || "/auth/sync";
+            showMessage("success", {
+              text:
+                data?.message || "Your account has been created successfully.",
+              onSuccess: () => {
+                // window.location.href = to; // ← redirection commentée
+                console.log("Registration succeeded, redirection skipped.");
+              },
+            });
+            return;
+          }
+
+          // Sinon, ce sont des erreurs métiers → affiche en erreur
+          const errs = data.errors || readErrors(data);
+          showFieldErrors(errs);
+
           if (window.SA && typeof SA.event === "function") {
-            SA.event("auth_register_success", {
+            SA.event("auth_register_error", {
               method: "email+password+phone",
+              reason: "validation",
+              fields: errs ? Object.keys(errs) : null,
             });
           }
 
-          localStorage.setItem("justRegistered", "true");
-          const to = data?.redirect || "/auth/sync";
-          showMessage("success", {
-            text:
-              data?.message || "Your account has been created successfully.",
-            onSuccess: () => (window.location.href = to),
+          const friendly = buildFriendlyErrorText(
+            errs,
+            data.message || "Please fix the highlighted fields."
+          );
+          showMessage("error", {
+            text: friendly,
+            autoCloseMs: 0,
+            closeOnBackdrop: false,
+            closeOnSwipe: false,
           });
-          return;
-        }
+        },
 
-        // 200 mais pas created → erreurs métier (validation serveur)
-        const errs = readErrors(data);
-        showFieldErrors(errs);
+        error: function (xhr) {
+          $spinner.hide();
+          $btnText.show();
+          $submitBtn.prop("disabled", false);
 
-        // ✅ ANALYTICS: erreur de validation serveur (sans PII)
-        if (window.SA && typeof SA.event === "function") {
-          SA.event("auth_register_error", {
-            method: "email+password+phone",
-            reason: "validation",
-            // on envoie UNIQUEMENT la liste des champs en cause
-            fields: errs ? Object.keys(errs) : null,
+          let payload;
+          try {
+            payload = xhr.responseJSON || JSON.parse(xhr.responseText);
+          } catch {
+            payload = { error: xhr.responseText };
+          }
+
+          const errs = payload.errors || readErrors(payload);
+          showFieldErrors(errs);
+
+          if (window.SA && typeof SA.event === "function") {
+            SA.event("auth_register_error", {
+              method: "email+password+phone",
+              reason: "http_error",
+              status: xhr.status || null,
+            });
+          }
+
+          const friendly = buildFriendlyErrorText(
+            errs,
+            payload.message || "Server error."
+          );
+          showMessage("error", {
+            text: friendly,
+            autoCloseMs: 0,
+            closeOnBackdrop: false,
+            closeOnSwipe: false,
           });
-        }
-
-        const friendly = buildFriendlyErrorText(
-          errs,
-          readTitle(data) || "Please fix the highlighted fields."
-        );
-        showMessage("error", {
-          text: friendly,
-          autoCloseMs: 0,
-          closeOnBackdrop: false,
-          closeOnSwipe: false,
-        });
-      },
-
-      error: function (xhr) {
-        $spinner.hide();
-        $btnText.show();
-        $submitBtn.prop("disabled", false);
-
-        let payload;
-        try {
-          payload = xhr.responseJSON || JSON.parse(xhr.responseText);
-        } catch {
-          payload = { error: xhr.responseText };
-        }
-
-        const errs = readErrors(payload);
-        showFieldErrors(errs);
-
-        // ✅ ANALYTICS: erreur HTTP (serveur)
-        if (window.SA && typeof SA.event === "function") {
-          SA.event("auth_register_error", {
-            method: "email+password+phone",
-            reason: "http_error",
-            status: xhr.status || null,
-          });
-        }
-
-        const friendly = buildFriendlyErrorText(errs, readTitle(payload));
-        showMessage("error", {
-          text: friendly,
-          autoCloseMs: 0,
-          closeOnBackdrop: false,
-          closeOnSwipe: false,
-        });
-      },
-    });
-
-    /* ============== Helpers “UX friendly” (inchangés) ============== */
-
-    const FIELD_MAP = {
-      fullname: "#fullname",
-      email: "#email",
-      password: "#password",
-      phone_number: "#phone_number",
-    };
-
-    function readTitle(payload) {
-      if (!payload) return "";
-      return payload.message || payload.error || payload.reason || "";
-    }
-
-    function readErrors(payload) {
-      if (!payload) return null;
-      return payload.errors || payload.data?.errors || null;
-    }
-
-    function humanizeFieldName(key) {
-      switch (key) {
-        case "fullname":
-          return "Full name";
-        case "email":
-          return "Email address";
-        case "password":
-          return "Password";
-        case "phone_number":
-          return "WhatsApp number";
-        default:
-          return (key || "")
-            .replace(/_/g, " ")
-            .replace(/\b\w/g, (m) => m.toUpperCase());
-      }
-    }
-
-    function flattenErrorLines(errs) {
-      const lines = [];
-      if (!errs || typeof errs !== "object") return lines;
-      for (const key in errs) {
-        const label = humanizeFieldName(key);
-        const val = errs[key];
-        if (Array.isArray(val)) {
-          val.forEach((v) => v && lines.push(`${label}: ${String(v)}`));
-        } else if (val) {
-          lines.push(`${label}: ${String(val)}`);
-        }
-      }
-      return lines;
-    }
-
-    function buildFriendlyErrorText(
-      errs,
-      heading = "Please review your entries."
-    ) {
-      const lines = flattenErrorLines(errs);
-      if (!lines.length) return heading;
-      return `${heading}\n\n- ${lines.join("\n- ")}`;
-    }
-
-    function showFieldErrors(errs) {
-      let first = null;
-      Object.values(FIELD_MAP).forEach((sel) => {
-        const el = document.querySelector(sel);
-        if (el) el.classList.remove("input-error");
+        },
       });
-      if (!errs || typeof errs !== "object") return;
-      for (const key in errs) {
-        const sel = FIELD_MAP[key];
-        const el = sel ? document.querySelector(sel) : null;
-        if (el) {
-          el.classList.add("input-error");
-          if (!first) first = el;
+
+      /* ============== Helpers “UX friendly” (inchangés) ============== */
+
+      const FIELD_MAP = {
+        fullname: "#fullname",
+        email: "#email",
+        password: "#password",
+        phone_number: "#phone_number",
+      };
+
+      function readTitle(payload) {
+        if (!payload) return "";
+        return payload.message || payload.error || payload.reason || "";
+      }
+
+      function readErrors(payload) {
+        if (!payload) return null;
+        return payload.errors || payload.data?.errors || null;
+      }
+
+      function humanizeFieldName(key) {
+        switch (key) {
+          case "fullname":
+            return "Full name";
+          case "email":
+            return "Email address";
+          case "password":
+            return "Password";
+          case "phone_number":
+            return "WhatsApp number";
+          default:
+            return (key || "")
+              .replace(/_/g, " ")
+              .replace(/\b\w/g, (m) => m.toUpperCase());
         }
       }
-      if (first && typeof first.focus === "function") first.focus();
-    }
+
+      function flattenErrorLines(errs) {
+        const lines = [];
+        if (!errs || typeof errs !== "object") return lines;
+        for (const key in errs) {
+          const label = humanizeFieldName(key);
+          const val = errs[key];
+          if (Array.isArray(val)) {
+            val.forEach((v) => v && lines.push(`${label}: ${String(v)}`));
+          } else if (val) {
+            lines.push(`${label}: ${String(val)}`);
+          }
+        }
+        return lines;
+      }
+
+      function buildFriendlyErrorText(
+        errs,
+        heading = "Please review your entries."
+      ) {
+        const lines = flattenErrorLines(errs);
+        if (!lines.length) return heading;
+        return `${heading}\n\n- ${lines.join("\n- ")}`;
+      }
+
+      function showFieldErrors(errs) {
+        let first = null;
+        Object.values(FIELD_MAP).forEach((sel) => {
+          const el = document.querySelector(sel);
+          if (el) el.classList.remove("input-error");
+        });
+        if (!errs || typeof errs !== "object") return;
+        for (const key in errs) {
+          const sel = FIELD_MAP[key];
+          const el = sel ? document.querySelector(sel) : null;
+          if (el) {
+            el.classList.add("input-error");
+            if (!first) first = el;
+          }
+        }
+        if (first && typeof first.focus === "function") first.focus();
+      }
+    });
   });
 
   // Fermer le popup

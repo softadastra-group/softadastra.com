@@ -53,6 +53,7 @@ use Ivi\Core\Collections\Vector;
 use Ivi\Core\Collections\HashMap;
 use Ivi\Core\Collections\HashSet;
 use Ivi\Core\Collections\Str;
+use Ivi\Core\Container\Container;
 
 /* -------------------------------------------------------------------------- */
 /* Debugging Helpers                                                          */
@@ -596,24 +597,28 @@ if (!function_exists('menu')) {
 
 if (!function_exists('config_value')) {
     /**
-     * Global config accessor.
+     * Global configuration accessor.
+     *
+     * Retrieves configuration values either from the DI container or
+     * the static Config system as fallback.
      *
      * Usage:
-     *   config_value('google');            // entire google.php array
-     *   config_value('google.client_id');  // specific key
-     *   config_value('google.foo', 'bar'); // default if key not set
+     *   config_value('google');            // returns entire google.php array
+     *   config_value('google.client_id');  // returns specific key
+     *   config_value('google.foo', 'bar'); // returns default if key not set
      *
      * @param string|null $key Dot-notated key or null to get all
-     * @param mixed $default Default value if key not found
+     * @param mixed $default Default value if key is not found
      * @return mixed
      */
     function config_value(?string $key = null, mixed $default = null): mixed
     {
-        // Try DI container first
+        // 1) Try DI container first
         if (function_exists('container')) {
             try {
                 $c = container();
-                if ($c && $c->has('config')) {
+
+                if (method_exists($c, 'has') && $c->has('config')) {
                     $cfg = $c->get('config');
 
                     if ($key === null && method_exists($cfg, 'all')) {
@@ -625,11 +630,11 @@ if (!function_exists('config_value')) {
                     }
                 }
             } catch (\Throwable $e) {
-                // fallback to static Config
+                // silent fallback to static config
             }
         }
 
-        // Static fallback
+        // 2) Static fallback
         if ($key === null) {
             return \Ivi\Core\Config\Config::all();
         }

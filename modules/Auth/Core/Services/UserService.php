@@ -189,10 +189,10 @@ class UserService extends BaseService
             ];
 
             $roles = [new Role(1, 'user')];
-            $newUser = $this->repository->createWithRoles($userData, $roles);
+            // $newUser = $this->repository->createWithRoles($userData, $roles);
 
-            $this->issueAuthForUser($newUser);
-            FlashMessage::add('success', 'Welcome, ' . ($newUser->getUsername() ?: $newUser->getFullname()) . '!');
+            // $this->issueAuthForUser($newUser);
+            // FlashMessage::add('success', 'Welcome, ' . ($newUser->getUsername() ?: $newUser->getFullname()) . '!');
 
             $next = $this->safeNextFromRequest('/finalize-registration');
             RedirectResponse::to($this->withAfterLoginHash($next))->send(); // <-- send()
@@ -361,6 +361,10 @@ class UserService extends BaseService
         $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['SERVER_PORT'] ?? 80) == 443;
         $isLocal = preg_match('/^(localhost|127\.0\.0\.1)(:\d+)?$/', $host) === 1;
 
+        // if (!empty($_POST['remember'])) {
+        //     $this->repository->createRememberMeToken($user);
+        // }
+
         $cookieOptions = [
             'expires'  => time() + $this->jwtValidity,
             'path'     => '/',
@@ -377,6 +381,8 @@ class UserService extends BaseService
 
         return $token;
     }
+
+
 
 
     /** Normalise et sécurise le paramètre `next` */
@@ -455,83 +461,123 @@ class UserService extends BaseService
         }
     }
 
-    public function register(string $fullname, string $email, string $password, string $phone_number): void
+    public function register(string $fullname, string $email, string $password, string $phone): void
     {
         try {
+            error_log("register() called with fullname='$fullname', email='$email', phone='$phone'");
+
             // ---- 1) Normalisation entrée
             $fullname = trim($fullname);
-            $email = strtolower(trim($email));
+            $emailRaw = strtolower(trim($email));
             $passwordPlain = trim($password);
-            $phone_number = trim($phone_number);
+            $phoneNumber = trim($phone);
+            error_log("Normalized inputs: fullname='$fullname', email='$emailRaw', phone='$phoneNumber'");
 
-            // ---- 2) Validation rapide
+            // ---- 2) Validation rapide côté serveur
             $earlyErrors = [];
             if ($fullname === '') $earlyErrors['fullname'] = 'Full name is required.';
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) $earlyErrors['email'] = 'A valid email address is required.';
+            if ($emailRaw === '' || !filter_var($emailRaw, FILTER_VALIDATE_EMAIL)) $earlyErrors['email'] = 'A valid email address is required.';
             if ($err = UserValidator::validatePassword($passwordPlain)) $earlyErrors['password'] = $err;
 
             if (!empty($earlyErrors)) {
+                error_log("Early validation errors: " . json_encode($earlyErrors));
                 $this->sendJson(['errors' => $earlyErrors], 400);
                 return;
             }
+            error_log("Early validation passed");
 
-            // ---- 3) Unicité email
-            if ($this->repository->findByEmail($email)) {
+            // ---- 3) Création Email ValueObject
+            $emailObj = new \Modules\Auth\Core\ValueObjects\Email($emailRaw);
+
+            // ---- 4) Vérification unicité email
+            $existingUser = $this->repository->findByEmail((string)$emailObj);
+            if ($existingUser) {
+                error_log("Email '{$emailObj}' already exists in DB");
                 $this->sendJson(['error' => 'This email is already taken.'], 409);
                 return;
             }
+            error_log("Email is unique");
 
-            // ---- 4) Création entité utilisateur via UserFactory
-            $photo = null;
+            // ---- 5) Création entité utilisateur via UserFactory
             $userData = [
-                'fullname'      => $fullname,
-                'email'         => $email,
-                'photo'         => UserHelper::getProfileImage($photo),
-                'password'      => UserHelper::hashPassword($passwordPlain),
-                'roles'         => [UserHelper::defaultRole()],
-                'status'        => UserHelper::defaultStatus(),
-                'verifiedEmail' => false,
-                'coverPhoto'    => UserHelper::defaultCover(),
-                'bio'           => UserHelper::defaultBio(),
-                'phone'         => $phone_number,
+                'fullname'       => UserHelper::formatFullName($fullname),
+                'email'          => $emailObj, // ValueObject
+                'photo'          => UserHelper::getProfileImage(null),
+                'password'       => UserHelper::hashPassword($passwordPlain),
+                'roles'          => [UserHelper::defaultRole()],
+                'status'         => UserHelper::defaultStatus(),
+                'verified_email' => 0,
+                'coverPhoto'     => UserHelper::defaultCover(),
+                'bio'            => UserHelper::defaultBio(),
+                'phone'          => $phoneNumber,
             ];
 
             $userEntity = UserFactory::createFromArray($userData);
+            error_log("User entity created");
 
-            // ---- 5) Validation métier complète
+            // ---- 6) Username unique
+            $username = UserHelper::generateUsername($userEntity->getFullname(), $this->repository);
+            if (!$username) {
+                $username = strtolower(preg_replace('/\s+/', '', $userEntity->getFullname()));
+            }
+            $userEntity->setUsername($username);
+            error_log("Fullname and username set: fullname='{$userEntity->getFullname()}', username='{$userEntity->getUsername()}'");
+
+            // ---- 7) Validation métier complète
             $validator = $this->validator ?? new UserValidator($this->repository);
-            if ($errors = $validator->validate($userEntity)) {
+            $errors = $validator->validate($userEntity);
+            if (!empty($errors)) {
+                error_log("Business validation errors: " . json_encode($errors));
                 $this->sendJson(['errors' => (array)$errors], 422);
                 return;
             }
+            error_log("Business validation passed");
 
-            // ---- 6) Nom formaté + username unique
-            $userEntity->setFullname(UserHelper::formatFullName($userEntity->getFullname()));
-            $userEntity->setUsername(UserHelper::generateUsername($userEntity->getFullname(), $this->repository));
+            // ---- 8) Persistance via repository avec gestion doublons
+            error_log("About to call repository->save()");
+            try {
+                $savedUser = $this->repository->save($userEntity);
+            } catch (\PDOException $e) {
+                if ($e->getCode() === '23000') { // Duplicate entry
+                    error_log("Duplicate email caught during insert: {$emailObj}");
+                    $this->sendJson(['error' => 'This email is already taken.'], 409);
+                    return;
+                }
+                throw $e;
+            }
+            error_log("After repository->save(), user ID: " . var_export($savedUser->getId(), true));
 
-            // ---- 7) Persistance via repository
-            $savedUser = $this->repository->save($userEntity);
+            if (!$savedUser->getId()) {
+                error_log("ERROR: User ID is null after save!");
+                throw new \RuntimeException("User insertion failed, ID not generated.");
+            }
 
-            // ---- 8) Auth / token
+            // ---- 9) Auth / token
             $token = $this->issueAuthForUser($savedUser);
+            error_log("Auth token generated");
 
-            // ---- 9) Flash + redirect
+            // ---- 10) Flash + redirect
             FlashMessage::add('success', 'Welcome, ' . UserHelper::lastName($savedUser->getFullname()) . ', to your account.');
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/'));
+            error_log("Flash message added, redirect prepared");
 
-            // ---- 10) Réponse JSON 201
+            // ---- 11) Réponse JSON 201
             $this->sendJson([
                 'token'    => $token,
                 'redirect' => $redirect,
                 'message'  => 'Account created successfully.'
             ], 201);
+            error_log("JSON response sent, register() finished successfully");
         } catch (\Throwable $e) {
+            error_log("Exception caught in register(): " . $e->getMessage() . "\n" . $e->getTraceAsString());
             $this->sendJson([
                 'error'  => 'An error occurred.',
                 'reason' => $e->getMessage()
             ], 500);
         }
     }
+
+
 
     /** Helper interne pour centraliser l'envoi de JSON */
     private function sendJson(array $data, int $status): void

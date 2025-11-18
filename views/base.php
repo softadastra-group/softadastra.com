@@ -38,6 +38,7 @@
             document.documentElement.classList.add('dark');
         }
     </script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 </head>
 
 <body class="bg-light text-dark font-sans">
@@ -63,6 +64,7 @@
     <!-- Global JS -->
     <script src="<?= asset('assets/js/spa.js') ?>" defer></script>
     <script src="<?= asset('assets/js/app.js') ?>" defer></script>
+    <script src="<?= asset('assets/js/modal.js') ?>" defer></script>
 
     <!-- SPA toggle -->
     <script>

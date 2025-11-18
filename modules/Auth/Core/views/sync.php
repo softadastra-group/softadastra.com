@@ -113,7 +113,7 @@
   </div>
 
   <script>
-    const redirectUrl = "/user/dashboard";
+    const redirectUrl = "/user";
     if (window.opener) {
       try {
         window.opener.location.href = redirectUrl;

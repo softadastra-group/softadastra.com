@@ -34,12 +34,12 @@ $next = isset($_GET['next']) ? trim($_GET['next']) : '';
 
                 <!-- Phone -->
                 <div class="sa-field" id="phone-wrapper">
-                    <label class="sa-label" for="phone_number">WhatsApp Number</label>
+                    <label class="sa-label" for="phone">WhatsApp Number</label>
                     <div class="softadastra-text-field phone-input-wrapper">
                         <span id="flag-icon" class="flag-icon"></span>
                         <input type="tel"
-                            id="phone_number"
-                            name="phone_number"
+                            id="phone"
+                            name="phone"
                             inputmode="tel"
                             autocomplete="tel"
                             maxlength="16"
@@ -49,7 +49,7 @@ $next = isset($_GET['next']) ? trim($_GET['next']) : '';
                             <div class="country-option" data-code="+256" data-flag="🇺🇬">🇺🇬 Uganda (+256)</div>
                             <div class="country-option" data-code="+243" data-flag="🇨🇩">🇨🇩 DRC (+243)</div>
                         </div>
-                        <div id="phone_number_error" class="error-messages"></div>
+                        <div id="phone_error" class="error-messages"></div>
                     </div>
                 </div>
 
@@ -92,11 +92,9 @@ $next = isset($_GET['next']) ? trim($_GET['next']) : '';
 </div>
 
 <script>
-    // Config locale si besoin (sinon déjà dans ton layout global)
     window.SA_API_BASE = window.SA_API_BASE || "http://localhost:3000";
-    window.SA_USER_ID = null; // visiteur non connecté
+    window.SA_USER_ID = null;
 
-    // 1) écran Register vu
     window.addEventListener("DOMContentLoaded", () => {
         if (window.SA && typeof SA.event === "function") {
             SA.event("auth_register_view", {
@@ -120,7 +118,6 @@ $next = isset($_GET['next']) ? trim($_GET['next']) : '';
         }
     });
 </script>
-
 
 <!-- Bottom-sheet popup pour showMessage -->
 <div id="shop-popup" class="shop-popup" style="display:none;">
