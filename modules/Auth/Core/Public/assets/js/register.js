@@ -183,7 +183,11 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
           $submitBtn.prop("disabled", false);
 
           // ✅ Seul le 201 ou l'absence d'erreurs signifie succès
-          if (jqXHR.status === 201 && !data.errors) {
+          if (
+            jqXHR.status === 201 &&
+            Array.isArray(data.errors) &&
+            data.errors.length === 0
+          ) {
             if (window.SA && typeof SA.event === "function") {
               SA.event("auth_register_success", {
                 method: "email+password+phone",

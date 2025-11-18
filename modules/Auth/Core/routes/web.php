@@ -24,9 +24,6 @@ $router->get('/auth', [AuthController::class, 'home']);
 $router->get('/auth/login', [AuthController::class, 'showLoginForm']);
 $router->post('/auth/login', [AuthController::class, 'handleLogin']);
 
-// Email login
-$router->get('/auth/login/email', [AuthController::class, 'showEmailLoginForm']);
-
 // Google OAuth callback
 $router->get('/auth/login/google/callback', [AuthController::class, 'handleGoogleCallback']);
 

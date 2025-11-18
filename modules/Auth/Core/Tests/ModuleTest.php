@@ -21,12 +21,6 @@ final class ModuleTest extends TestCase
         );
     }
 
-    // ❌ à retirer ou désactiver (test volontairement faux)
-    // public function testThisShouldFail(): void
-    // {
-    //     $this->assertTrue(false);
-    // }
-
     public function testModuleNameIsCorrect(): void
     {
         $module = require __DIR__ . '/../Module.php';

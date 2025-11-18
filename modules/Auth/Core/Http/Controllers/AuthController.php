@@ -8,21 +8,21 @@ use App\Controllers\Controller;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\HtmlResponse;
 use Ivi\Core\Services\GoogleService;
-use Modules\Auth\Core\Services\UserService;
-use Exception;
 use Ivi\Core\Validation\ValidationException;
+use Modules\Auth\Core\Services\UserService;
 use Ivi\Http\Request;
+use Modules\Auth\Core\Helpers\AuthUser;
+use Modules\Auth\Core\Helpers\UserHelper;
 
 class AuthController extends Controller
 {
-    private GoogleService $google;
     private UserService $users;
+    private GoogleService $google;
 
     public function __construct()
     {
-        // GOOGLE CONFIG
+        // Google config
         $config = config_value('google');
-
         if (!$config || !is_array($config)) {
             throw new \RuntimeException(
                 "Google configuration not found. Ensure config/google.php exists and returns an array."
@@ -31,7 +31,7 @@ class AuthController extends Controller
 
         $this->google = new GoogleService($config);
 
-        // 💡 Injection UserRepository → UserService
+        // Inject UserService (qui contient le wrapper vers UserRegistrationService)
         $this->users = make(UserService::class);
     }
 
@@ -91,37 +91,85 @@ class AuthController extends Controller
 
     public function handleRegistration(Request $request): JsonResponse
     {
+        $data = $request->all();
+
+        $fullname = (string)($data['fullname'] ?? '');
+        $email    = (string)($data['email'] ?? '');
+        $password = (string)($data['password'] ?? '');
+        $phone    = (string)($data['phone'] ?? '');
+
+        $result = $this->users->register($fullname, $email, $password, $phone);
+
+        // Si aucune erreur → status 201, sinon 422
+        $status = empty($result['errors']) ? 201 : 422;
+
+        // ⚠ Important : s'assurer que "errors" est toujours un array
+        if (!isset($result['errors']) || $result['errors'] === null) {
+            $result['errors'] = [];
+        }
+
+        return new JsonResponse($result, $status);
+    }
+
+    // ---------------------------------------------------
+    // POST LOGIN
+    // ---------------------------------------------------
+    public function handleLogin(Request $request): JsonResponse
+    {
+        $data = $request->all();
+        $email    = (string)($data['email'] ?? '');
+        $password = (string)($data['password'] ?? '');
+        $next     = (string)($data['next'] ?? '/');
+
         try {
-            // On récupère toutes les sources (POST + JSON)
-            $data = $request->all();
-
-            $fullname = (string) ($data['fullname'] ?? '');
-            $email    = (string) ($data['email'] ?? '');
-            $password = (string) ($data['password'] ?? '');
-            $phone    = (string) ($data['phone'] ?? '');
-
-            // Appel à la logique métier
-            $result = $this->users->register($fullname, $email, $password, $phone);
-
-            // Si register() renvoie des erreurs, on retourne 422
-            if (!empty($result['errors'])) {
+            if (!$email || !$password) {
                 return new JsonResponse([
-                    'message' => 'Invalid data.',
-                    'errors'  => $result['errors'],
+                    'success' => false,
+                    'errors'  => ['email' => 'Email and password are required.'],
+                    'message' => 'Invalid login data.',
+                    'redirect' => $next,
                 ], 422);
             }
 
-            // Succès
-            return new JsonResponse($result, 201);
-        } catch (ValidationException $e) {
+            $user = $this->users->findByEmail($email);
+
+            if (!$user || !UserHelper::verifyPassword($password, $user->getPassword())) {
+                return new JsonResponse([
+                    'success' => false,
+                    'errors'  => ['email' => 'Invalid email or password.'],
+                    'message' => 'Login failed.',
+                    'redirect' => $next,
+                ], 401);
+            }
+
+            // Génère le token
+            $token = $this->users->loginUser($user);
+
+            // Crée session + cookie
+            AuthUser::setSessionAndCookie($user, $token);
+
+            // Réponse finale avec succès
+            $response = [
+                'success'  => true,
+                'token'    => $token,
+                'user'     => [
+                    'id'       => $user->getId(),
+                    'email'    => (string)$user->getEmail(),
+                    'username' => $user->getUsername(),
+                    'roles'    => array_map(fn($r) => $r->getName(), $user->getRoles()),
+                ],
+                'message'  => 'Login successful.',
+                'errors'   => [],
+                'redirect' => $next,
+            ];
+
+            return new JsonResponse($response, 200);
+        } catch (\Throwable $e) {
             return new JsonResponse([
-                'message' => 'Invalid data.',
-                'errors'  => $e->getMessage(),
-            ], 422);
-        } catch (\Exception $e) {
-            return new JsonResponse([
-                'message' => 'Registration failed.',
-                'error'   => $e->getMessage(),
+                'success' => false,
+                'errors'  => ['exception' => $e->getMessage()],
+                'message' => 'Login error.',
+                'redirect' => $next,
             ], 500);
         }
     }

@@ -3,18 +3,30 @@
 namespace Modules\Auth\Core\Services;
 
 use Exception;
+use Ivi\Http\JsonResponse;
 use Ivi\Http\Response;
 use Modules\Auth\Core\Helpers\AuthUser;
 use Modules\Auth\Core\Image\PhotoHandler;
 use Modules\Auth\Core\Repositories\UserRepository;
+use Modules\Auth\Core\Validator\UserValidator;
 
 abstract class BaseService
 {
     /** @var AuthUser */
     protected AuthUser $authUser;
 
-    public function __construct()
+    protected UserRepository $repository;
+    protected int $jwtValidity = 3600 * 24; // 24h
+
+    protected ?UserValidator $validator = null;
+    protected $tokenGenerator;
+    /** Handler pour intercepter JsonResponse dans les tests */
+    protected $jsonResponseHandler = null;
+
+    public function __construct(UserRepository $repository)
     {
+        $this->repository = $repository;
+
         $this->authUser = new AuthUser();
     }
 
@@ -101,5 +113,60 @@ abstract class BaseService
         }
 
         return $uploadedImages;
+    }
+
+    /** Helper interne pour centraliser l'envoi de JSON */
+    protected function sendJson(array $data, int $status): void
+    {
+        $response = new JsonResponse($data, $status);
+
+        if ($this->jsonResponseHandler) {
+            // Interception pour les tests
+            ($this->jsonResponseHandler)($response);
+        } else {
+            $response->send();
+        }
+    }
+
+    /** Normalise et sécurise le paramètre `next` */
+    protected function safeNextFromRequest(string $default = '/'): string
+    {
+        $next = $_GET['next'] ?? $_POST['next'] ?? ($_SESSION['post_auth_next'] ?? '');
+        if (!$next) return $default;
+
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+        $nextHost   = parse_url($next, PHP_URL_HOST) ?? '';
+        $nextScheme = parse_url($next, PHP_URL_SCHEME) ?? '';
+
+        if ((strpos($next, '//') === false && str_starts_with($next, '/')) ||
+            ($nextHost === $host && ($nextScheme === '' || $nextScheme === $scheme))
+        ) {
+            return $next;
+        }
+
+        return $default;
+    }
+
+    /** Ajoute un hash #__sa_after_login pour scroll/restoration front */
+    protected function withAfterLoginHash(string $url): string
+    {
+        return str_contains($url, '#') ? $url : ($url . '#__sa_after_login');
+    }
+
+    public function setJsonResponseHandler(callable $handler): void
+    {
+        $this->jsonResponseHandler = $handler;
+    }
+
+    public function setTokenGenerator(callable $generator): void
+    {
+        $this->tokenGenerator = $generator;
+    }
+
+    public function setValidator(UserValidator $validator): void
+    {
+        $this->validator = $validator;
     }
 }

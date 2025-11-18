@@ -1,5 +1,5 @@
 <?php
-$next = isset($_GET['next']) ? trim($_GET['next']) : '';
+$next = isset($_GET['next']) && trim($_GET['next']) !== '' ? trim($_GET['next']) : '/';
 ?>
 <div class="sa-auth">
     <section class="sa-card">
