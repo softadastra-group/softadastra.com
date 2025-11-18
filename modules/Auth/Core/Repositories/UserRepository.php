@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Modules\Auth\Core\Repositories;
 
+use Ivi\Core\ORM\Connection;
+use Ivi\Core\ORM\QueryBuilder;
 use Ivi\Core\ORM\Repository;
 use Modules\Auth\Core\Models\User;
 use Modules\Auth\Core\Factories\UserFactory;
 use Modules\Auth\Core\Helpers\UserHelper;
+use Modules\Auth\Core\ValueObjects\Email;
 use Modules\Auth\Core\ValueObjects\Role;
+use RuntimeException;
 
 class UserRepository extends Repository
 {
@@ -73,13 +77,15 @@ class UserRepository extends Repository
         return UserFactory::createFromDb($userRow, $rolesRows);
     }
 
-    public function findByEmail(string $email): ?User
+    public function findByEmail(string|Email $email): ?User
     {
-        if (!$email) return null;
+        $emailStr = $email instanceof Email ? (string)$email : $email;
+        if (!$emailStr) return null;
 
         $userRow = User::query()
-            ->where('email = ?', $email)
+            ->where('email = ?', $emailStr)
             ->first();
+
         if (!$userRow) return null;
 
         $rolesRows = User::query()
@@ -92,15 +98,101 @@ class UserRepository extends Repository
         return UserFactory::createFromDb($userRow, $rolesRows);
     }
 
-    public function update(User $user): void
-    {
-        $user->save(); // La méthode save() de l’ORM gère l’UPDATE automatiquement
-    }
-
     public function updateAccessToken(User $user): void
     {
-        $user->save(); // Même principe, si accessToken est défini, il sera mis à jour
+        if (!$user->getId()) {
+            throw new \RuntimeException("Cannot update token of unsaved user.");
+        }
+
+        User::query()
+            ->where('id = ?', $user->getId())
+            ->update([
+                'access_token' => $user->getAccessToken()
+            ]);
     }
+
+    // public function createRememberMeToken(User $user): void
+    // {
+    //     $selector = bin2hex(random_bytes(9));
+    //     $validator = bin2hex(random_bytes(32));
+    //     $validatorHash = hash('sha256', $validator);
+
+    //     $expires = (new \DateTime())->modify('+30 days')->format('Y-m-d H:i:s');
+
+    //     QueryBuilder::table('remember_tokens')->insert([
+    //         'user_id'       => $user->getId(),
+    //         'selector'      => $selector,
+    //         'validator_hash' => $validatorHash,
+    //         'expires_at'    => $expires,
+    //         'ip'            => $_SERVER['REMOTE_ADDR'] ?? null,
+    //         'user_agent'    => $_SERVER['HTTP_USER_AGENT'] ?? null,
+    //     ]);
+
+    //     setcookie(
+    //         'remember',
+    //         "$selector:$validator",
+    //         [
+    //             'expires'  => strtotime($expires),
+    //             'path'     => '/',
+    //             'secure'   => true,
+    //             'httponly' => true,
+    //             'samesite' => 'Lax'
+    //         ]
+    //     );
+    // }
+
+    // private function autoLoginFromRememberMe(): void
+    // {
+    //     [$selector, $validator] = explode(':', $_COOKIE['remember']);
+
+    //     $row = QueryBuilder::table('remember_tokens')
+    //         ->where('selector = ?', $selector)
+    //         ->where('expires_at > NOW()')
+    //         ->first();
+
+    //     if (!$row) return;
+
+    //     if (!hash_equals($row['validator_hash'], hash('sha256', $validator))) {
+    //         // possible vol de cookie → supprimer tous les remember tokens de l’utilisateur
+    //         QueryBuilder::table('remember_tokens')
+    //             ->where('user_id = ?', $row['user_id'])
+    //             ->delete();
+    //         return;
+    //     }
+
+    //     $user = $this->userRepository->find($row['user_id']);
+    //     if (!$user) return;
+
+    //     // Regénère la session
+    //     session_regenerate_id(true);
+
+    //     $_SESSION['unique_id']  = $user->getId();
+    //     $_SESSION['user_email'] = $user->getEmail();
+    //     $_SESSION['roles']      = $user->getRoleNames();
+
+    //     // Regénère un JWT
+    //     $token = UserHelper::generateJwt($user, 3600);
+    //     $user->setAccessToken($token);
+    //     $this->repository->updateAccessToken($user);
+
+    //     setcookie('token', $token, [
+    //         'expires'  => time() + 3600,
+    //         'path'     => '/',
+    //         'secure'   => true,
+    //         'httponly' => true,
+    //         'samesite' => 'Lax'
+    //     ]);
+    // }
+
+    // Dans ton logout() :
+
+    // setcookie('remember', '', time() - 3600, '/');
+
+    // QueryBuilder::table('remember_tokens')
+    //     ->where('user_id = ?', $user->getId())
+    //     ->delete();
+
+
 
     public function delete(int $id): void
     {
@@ -113,21 +205,27 @@ class UserRepository extends Repository
     /**
      * Crée un utilisateur avec ses rôles.
      *
-     * @param array $data Données utilisateur
+     * @param array $data Données utilisateur (associatif)
      * @param array<string|Role> $roles Liste de rôles en objets Role ou en noms de rôle
      * @return User
      */
-    public function createWithRoles(array $data, array $roles = []): User
+    public function createWithRoles(User $user, array $roles = []): User
     {
-        $roleObjects = $this->normalizeRoles($roles);
+        try {
+            // Insert utilisateur
+            $userId = (int) User::query()->insert($user->toArray());
+            $user->setId($userId);
+        } catch (\PDOException $e) {
+            // Gestion du cas "duplicate entry"
+            if ($e->getCode() === '23000') {
+                throw new \RuntimeException('Email already exists.');
+            }
+            throw $e;
+        }
 
-        // Création du user via le factory
-        $user = UserFactory::createFromArray(array_merge($data, ['roles' => $roleObjects]));
-        $user->save();
-
-        $userId = $user->getId();
-        foreach ($roleObjects as $role) {
-            User::query('user_roles')->insert([
+        // Insert roles pivot
+        foreach ($roles as $role) {
+            QueryBuilder::table('user_roles')->insert([
                 'user_id' => $userId,
                 'role_id' => $role->getId()
             ]);
@@ -137,15 +235,30 @@ class UserRepository extends Repository
         return $user;
     }
 
+    /**
+     * Sauvegarde un utilisateur (INSERT ou UPDATE selon existence de l'ID)
+     */
     public function save(User $user): User
     {
         if ($user->getId()) {
+            // UPDATE seulement
             $this->update($user);
             return $user;
-        } else {
-            return $this->createWithRoles($user->toArray(), $user->getRoles());
         }
+
+        // INSERT avec gestion des rôles
+        return $this->createWithRoles($user, $user->getRoles());
     }
+
+    /**
+     * Met à jour un utilisateur existant
+     */
+    public function update(User $user): void
+    {
+        // On utilise save() de l’ORM Model qui fait UPDATE automatiquement
+        $user->save();
+    }
+
 
     /**
      * Met à jour un champ spécifique d’un utilisateur (ex: photo, cover_photo) avec Cloudinary public_id optionnel.

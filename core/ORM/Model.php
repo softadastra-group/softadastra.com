@@ -193,14 +193,26 @@ abstract class Model
         }
 
         if (!empty($this->attributes[$pk])) {
+            // UPDATE
             $id = $this->attributes[$pk];
             (new QueryBuilder(Connection::instance(), $table))
                 ->where("{$pk} = ?", $id)
                 ->update($data);
         } else {
+            // INSERT
             $id = (new QueryBuilder(Connection::instance(), $table))
                 ->insert($data);
+
+            if (!$id) {
+                error_log("ERROR: Insert did not return an ID! Check QueryBuilder::insert()");
+                throw new \RuntimeException("Failed to insert user, no ID returned.");
+            }
+
             $this->attributes[$pk] = $id;
+
+            if (property_exists($this, 'id')) {
+                $this->id = $id; // synchroniser la propriété $id
+            }
         }
 
         return $this;

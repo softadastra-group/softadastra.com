@@ -185,7 +185,10 @@ final class QueryBuilder
         $sql  = 'INSERT INTO ' . $this->table
             . ' (' . implode(',', $cols) . ') VALUES (' . implode(',', $ph) . ')';
         $stmt = $this->pdo->prepare($sql);
-        foreach ($data as $c => $v) $stmt->bindValue(':' . $c, $v);
+        foreach ($data as $c => $v) {
+            if (is_bool($v)) $v = (int)$v;
+            $stmt->bindValue(':' . $c, $v);
+        }
         $stmt->execute();
         return (int)$this->pdo->lastInsertId();
     }

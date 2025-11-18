@@ -2,6 +2,7 @@
 
 namespace Modules\Auth\Core\Tests\Services;
 
+use Ivi\Core\Container\Container;
 use Ivi\Core\Utils\FlashMessage;
 use PHPUnit\Framework\TestCase;
 use Modules\Auth\Core\Services\UserService;
@@ -24,7 +25,11 @@ final class UserServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // 1) Crée le mock du repository
         $this->repositoryMock = $this->createMock(UserRepository::class);
+
+        // 2) Crée directement le service avec le mock
         $this->service = new UserService($this->repositoryMock);
     }
 
@@ -62,38 +67,34 @@ final class UserServiceTest extends TestCase
                 return $user;
             });
 
-        // --- 3) Préparer la capture de JsonResponse
+        // --- 3) Capturer la réponse JSON
         $response = null;
 
-        // --- 4) Mock UserValidator pour forcer succès
+        // --- 4) Validator mock
         $validatorMock = $this->getMockBuilder(UserValidator::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['validate'])
             ->getMock();
         $validatorMock->method('validate')->willReturn([]);
 
-        // --- 5) Créer un mock du service pour moquer issueAuthForUser
-        $serviceMock = $this->getMockBuilder(UserService::class)
-            ->setConstructorArgs([$this->repositoryMock])
-            ->onlyMethods(['issueAuthForUser'])
-            ->getMock();
+        // --- 5) Créer une classe dérivée temporaire pour surcharger issueAuthForUser
+        $testService = new class($this->repositoryMock) extends UserService {
+            public function issueAuthForUser(User $user): string
+            {
+                return 'fake-jwt-token';
+            }
+        };
 
-        // Retour simulé du token
-        $serviceMock->method('issueAuthForUser')->willReturn('fake-jwt-token');
+        $testService->setValidator($validatorMock);
+        $testService->setJsonResponseHandler(fn(?JsonResponse $resp) => $GLOBALS['testResponse'] = $resp);
 
-        // Injecter le validator mocké
-        $serviceMock->setValidator($validatorMock);
+        // --- 6) Appel register
+        $GLOBALS['testResponse'] = null;
+        $testService->register($fullname, $email, $password, $phone);
 
-        // **Injection du handler JSON pour capturer la réponse**
-        $serviceMock->setJsonResponseHandler(function (?JsonResponse $resp) use (&$response) {
-            $response = $resp;
-        });
-
-        // --- 6) Appel de register
-        $serviceMock->register($fullname, $email, $password, $phone);
-
-        // --- 7) Vérification de la réponse
-        $this->assertNotNull($response, 'Une réponse JSON doit être générée');
+        // --- 7) Vérification
+        $response = $GLOBALS['testResponse'];
+        $this->assertNotNull($response, 'A JSON response should be generated');
 
         /** @var JsonResponse $responseObj */
         $responseObj = $response;
@@ -102,6 +103,68 @@ final class UserServiceTest extends TestCase
         $this->assertEquals(201, $responseObj->status());
         $this->assertArrayHasKey('token', $data);
         $this->assertEquals('Account created successfully.', $data['message']);
+    }
+
+    public function testRegisterEmailAlreadyTaken(): void
+    {
+        $fullname = 'Gaspard Kirira';
+        $email = 'gaspard@example.com';
+        $password = 'StrongPass123!';
+        $phone = '+256712345678';
+
+        // --- 1) Utilisateur existant
+        $role = new Role(1, 'user');
+        $existingUser = UserFactory::createFromArray([
+            'fullname' => $fullname,
+            'email' => $email,
+            'password' => $password,
+            'roles' => [$role],
+            'status' => 'active',
+            'verifiedEmail' => true,
+            'coverPhoto' => null,
+            'bio' => null,
+            'phone' => $phone,
+        ]);
+
+        $reflectionUser = new \ReflectionClass($existingUser);
+        $propertyUserId = $reflectionUser->getProperty('id');
+        $propertyUserId->setAccessible(true);
+        $propertyUserId->setValue($existingUser, 1);
+
+        $this->repositoryMock
+            ->method('findByEmail')
+            ->with($email)
+            ->willReturn($existingUser);
+
+        $response = null;
+        $validatorMock = $this->getMockBuilder(UserValidator::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['validate'])
+            ->getMock();
+        $validatorMock->method('validate')->willReturn([]);
+
+        $testService = new class($this->repositoryMock) extends UserService {
+            public function issueAuthForUser(User $user): string
+            {
+                return 'fake-jwt-token';
+            }
+        };
+
+        $testService->setValidator($validatorMock);
+        $testService->setJsonResponseHandler(fn(?JsonResponse $resp) => $GLOBALS['testResponse'] = $resp);
+
+        $GLOBALS['testResponse'] = null;
+        $testService->register($fullname, $email, $password, $phone);
+
+        $response = $GLOBALS['testResponse'];
+        $this->assertNotNull($response, 'A JSON response should be generated');
+
+        /** @var JsonResponse $responseObj */
+        $responseObj = $response;
+        $data = $responseObj->getData();
+
+        $this->assertEquals(409, $responseObj->status());
+        $this->assertEquals('This email is already taken.', $data['error']);
     }
 
     public function testLoginWithCredentialsSuccess(): void
@@ -236,60 +299,5 @@ final class UserServiceTest extends TestCase
         // 7️⃣ Assertions redirection
         $this->assertNotEmpty($redirectUrl, 'Une redirection doit être déclenchée');
         $this->assertStringContainsString('/finalize-registration', $redirectUrl);
-    }
-
-
-    public function testRegisterEmailAlreadyTaken(): void
-    {
-        $fullname = 'Gaspard Kirira';
-        $email = 'gaspard@example.com';
-        $password = 'StrongPass123!';
-        $phone = '+256712345678';
-
-        // Crée un rôle avec ID
-        $role = new Role(1, 'user');
-
-        // Crée un utilisateur existant avec ce rôle
-        $existingUser = UserFactory::createFromArray([
-            'fullname' => $fullname,
-            'email' => $email,
-            'password' => $password,
-            'roles' => [$role],
-            'status' => 'active',
-            'verifiedEmail' => true,
-            'coverPhoto' => null,
-            'bio' => null,
-            'phone' => $phone,
-        ]);
-
-        // ID simulé pour l'utilisateur
-        $reflectionUser = new \ReflectionClass($existingUser);
-        $propertyUserId = $reflectionUser->getProperty('id');
-        $propertyUserId->setAccessible(true);
-        $propertyUserId->setValue($existingUser, 1);
-
-        $this->repositoryMock
-            ->method('findByEmail')
-            ->with($email)
-            ->willReturn($existingUser);
-
-        /** @var JsonResponse|null $response */
-        $response = null;
-
-        JsonResponse::overrideSend(function (?JsonResponse $resp) use (&$response): void {
-            $response = $resp;
-        });
-
-        $this->service->register($fullname, $email, $password, $phone);
-
-        // S'assurer que $response est bien un objet JsonResponse
-        $this->assertNotNull($response, 'Une réponse JSON doit être générée');
-
-        /** @var JsonResponse $responseObj */
-        $responseObj = $response;
-        $data = $responseObj->getData();
-
-        $this->assertEquals(409, $responseObj->status());
-        $this->assertEquals('This email is already taken.', $data['error']);
     }
 }

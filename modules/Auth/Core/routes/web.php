@@ -34,6 +34,8 @@ $router->get('/auth/login/google/callback', [AuthController::class, 'handleGoogl
 $router->get('/auth/register', [AuthController::class, 'showRegistrationForm']);
 $router->post('/auth/register', [AuthController::class, 'handleRegistration']);
 
+$router->get('/auth/sync', [AuthController::class, 'showSyncPage']);
+
 // Finalize registration (e.g., email verification / extra info)
 $router->get('/auth/finalize-registration', [AuthController::class, 'showFinalizeRegistrationForm']);
 $router->post('/auth/finalize-registration', [AuthController::class, 'handleFinalizeRegistration']);
