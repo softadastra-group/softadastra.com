@@ -230,4 +230,22 @@ class UserHelper
     {
         return new Role(1, 'user');
     }
+
+    /** Normalisation du téléphone en E.164 pour UG & DRC */
+    public static function normalizeE164(string $raw): string
+    {
+        $v = preg_replace('/[^\d+]/', '', trim($raw));
+        if ($v === '') return '';
+
+        // Uganda
+        if (preg_match('/^(?:\+256|256|0?7)(\d{8})$/', $v, $m)) {
+            return '+256' . $m[1];
+        }
+        // DRC
+        if (preg_match('/^(?:\+243|243|0?[89])(\d{8})$/', $v, $m)) {
+            return '+243' . $m[1];
+        }
+
+        return $v;
+    }
 }

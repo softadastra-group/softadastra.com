@@ -13,24 +13,44 @@ use Ivi\Http\RedirectResponse;
 use Modules\Auth\Core\Factories\UserFactory;
 use Modules\Auth\Core\Helpers\UserHelper;
 use Modules\Auth\Core\Models\User;
+use Modules\Auth\Core\Services\AuthService;
+use Modules\Auth\Core\Services\UserRegistrationService;
+use Modules\Auth\Core\Services\UserSecurityService;
 use Modules\Auth\Core\Validator\UserValidator;
 use Modules\Auth\Core\ValueObjects\Email;
 
 final class UserServiceTest extends TestCase
 {
-    private UserService $service;
+    private UserRegistrationService $registrationService;
+    private AuthService $authService;
+
     /** @var UserRepository&\PHPUnit\Framework\MockObject\MockObject */
     private $repositoryMock;
+
+    /** @var UserSecurityService&\PHPUnit\Framework\MockObject\MockObject */
+    private $securityMock;
+
+    /** @var AuthService&\PHPUnit\Framework\MockObject\MockObject */
+    private $authMock;
+
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // 1) Crée le mock du repository
         $this->repositoryMock = $this->createMock(UserRepository::class);
+        $this->securityMock = $this->createMock(UserSecurityService::class);
+        $this->authMock = $this->createMock(AuthService::class);
 
-        // 2) Crée directement le service avec le mock
-        $this->service = new UserService($this->repositoryMock);
+        $this->registrationService = new UserRegistrationService(
+            $this->repositoryMock,
+            $this->authMock
+        );
+
+        $this->authService = new AuthService(
+            $this->repositoryMock,
+            $this->securityMock
+        );
     }
 
     public function testRegisterSuccess(): void
@@ -67,18 +87,15 @@ final class UserServiceTest extends TestCase
                 return $user;
             });
 
-        // --- 3) Capturer la réponse JSON
-        $response = null;
-
-        // --- 4) Validator mock
+        // --- 3) Validator mock
         $validatorMock = $this->getMockBuilder(UserValidator::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['validate'])
             ->getMock();
         $validatorMock->method('validate')->willReturn([]);
 
-        // --- 5) Créer une classe dérivée temporaire pour surcharger issueAuthForUser
-        $testService = new class($this->repositoryMock) extends UserService {
+        // --- 4) Classe de test anonyme pour surcharger issueAuthForUser
+        $testService = new class($this->repositoryMock, $this->authMock) extends UserRegistrationService {
             public function issueAuthForUser(User $user): string
             {
                 return 'fake-jwt-token';
@@ -88,11 +105,11 @@ final class UserServiceTest extends TestCase
         $testService->setValidator($validatorMock);
         $testService->setJsonResponseHandler(fn(?JsonResponse $resp) => $GLOBALS['testResponse'] = $resp);
 
-        // --- 6) Appel register
+        // Appel register
         $GLOBALS['testResponse'] = null;
         $testService->register($fullname, $email, $password, $phone);
 
-        // --- 7) Vérification
+        // --- 6) Vérification
         $response = $GLOBALS['testResponse'];
         $this->assertNotNull($response, 'A JSON response should be generated');
 
@@ -136,14 +153,15 @@ final class UserServiceTest extends TestCase
             ->with($email)
             ->willReturn($existingUser);
 
-        $response = null;
+        // --- 2) Validator mock
         $validatorMock = $this->getMockBuilder(UserValidator::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['validate'])
             ->getMock();
         $validatorMock->method('validate')->willReturn([]);
 
-        $testService = new class($this->repositoryMock) extends UserService {
+        // --- 3) Classe de test anonyme
+        $testService = new class($this->repositoryMock, $this->authMock) extends UserRegistrationService {
             public function issueAuthForUser(User $user): string
             {
                 return 'fake-jwt-token';
@@ -153,9 +171,11 @@ final class UserServiceTest extends TestCase
         $testService->setValidator($validatorMock);
         $testService->setJsonResponseHandler(fn(?JsonResponse $resp) => $GLOBALS['testResponse'] = $resp);
 
+        // Appel register
         $GLOBALS['testResponse'] = null;
         $testService->register($fullname, $email, $password, $phone);
 
+        // --- 5) Vérification
         $response = $GLOBALS['testResponse'];
         $this->assertNotNull($response, 'A JSON response should be generated');
 
@@ -172,52 +192,56 @@ final class UserServiceTest extends TestCase
         $email = 'gaspard@example.com';
         $password = 'StrongPass123!';
 
-        // --- 1) Créer un mock User
+        // --- 1) Mock User
         $role = new Role(1, 'user');
 
         $userMock = $this->getMockBuilder(User::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getPassword', 'getId', 'getEmail', 'getUsername', 'getRoles'])
             ->getMock();
-
         $userMock->method('getPassword')->willReturn(UserHelper::hashPassword($password));
         $userMock->method('getId')->willReturn(1);
-        $userMock->method('getEmail')->willReturn(new Email($email)); // retourne un ValueObject Email
+        $userMock->method('getEmail')->willReturn(new Email($email));
         $userMock->method('getUsername')->willReturn('gaspard');
         $userMock->method('getRoles')->willReturn([$role]);
 
-        // --- 2) Mock repository
+        // --- 2) Mock Repository
         $this->repositoryMock
             ->expects($this->once())
             ->method('findByEmail')
             ->with($email)
             ->willReturn($userMock);
 
-        $this->repositoryMock->method('resetFailedAttempts')->with($email);
-        $this->repositoryMock->method('incrementFailedAttempts')->with($email);
-        $this->repositoryMock->method('acquireLock')->willReturn(true);
-        $this->repositoryMock->method('releaseLock')->willReturn(true);
+        // --- 3) Mock UserSecurityService
+        $this->securityMock->expects($this->once())
+            ->method('resetFailedAttempts')
+            ->with($email);
+        $this->securityMock->method('incrementFailedAttempts')->with($email);
+        $this->securityMock->method('acquireLock')->willReturn(true);
+        $this->securityMock->method('releaseLock')->willReturn(true);
+        $this->securityMock->method('getFailedAttempts')->with($email)->willReturn([
+            'failed_attempts' => 0,
+            'last_failed_login' => null,
+        ]);
 
-        // --- 3) Mock du service pour issueAuthForUser
-        $serviceMock = $this->getMockBuilder(UserService::class)
-            ->setConstructorArgs([$this->repositoryMock])
+        // --- 4) Mock AuthService pour surcharger issueAuthForUser
+        $authServiceMock = $this->getMockBuilder(AuthService::class)
+            ->setConstructorArgs([$this->repositoryMock, $this->securityMock])
             ->onlyMethods(['issueAuthForUser'])
             ->getMock();
+        $authServiceMock->method('issueAuthForUser')->willReturn('fake-jwt-token');
 
-        $serviceMock->method('issueAuthForUser')->willReturn('fake-jwt-token');
-
-        // --- 4) Capturer la réponse JSON
+        // --- 5) Capturer la réponse JSON
         $response = null;
-        $serviceMock->setJsonResponseHandler(function (?JsonResponse $resp) use (&$response) {
+        $authServiceMock->setJsonResponseHandler(function (?JsonResponse $resp) use (&$response) {
             $response = $resp;
         });
 
-        // --- 5) Appel de login
-        $serviceMock->loginWithCredentials($email, $password);
+        // --- 6) Appel login sur AuthService
+        $authServiceMock->loginWithCredentials($email, $password);
 
-        // --- 6) Vérification de la réponse
+        // --- 7) Vérification
         $this->assertNotNull($response, 'Une réponse JSON doit être générée');
-
         /** @var JsonResponse $responseObj */
         $responseObj = $response;
         $data = $responseObj->getData();
@@ -226,7 +250,7 @@ final class UserServiceTest extends TestCase
         $this->assertArrayHasKey('token', $data);
         $this->assertEquals('fake-jwt-token', $data['token']);
         $this->assertArrayHasKey('user', $data);
-        $this->assertEquals($email, (string)$data['user']['email']); // conversion Email -> string
+        $this->assertEquals($email, (string)$data['user']['email']);
     }
 
     public function testLoginWithGoogleOAuth_NewUser(): void
@@ -239,7 +263,7 @@ final class UserServiceTest extends TestCase
             'verifiedEmail' => true,
         ];
 
-        // 2️⃣ Mock repository
+        // 2️⃣ Mock repository pour findByEmail et createWithRoles
         $this->repositoryMock
             ->expects($this->once())
             ->method('findByEmail')
@@ -250,53 +274,54 @@ final class UserServiceTest extends TestCase
             ->expects($this->once())
             ->method('createWithRoles')
             ->with(
-                $this->callback(fn($data) => $data['email'] === strtolower($googleUser->email)
-                    && $data['fullname'] === $googleUser->name),
+                $this->callback(
+                    fn($user) =>
+                    $user instanceof User &&
+                        (string)$user->getEmail() === strtolower($googleUser->email) &&
+                        $user->getFullname() === $googleUser->name
+                ),
                 $this->isType('array')
             )
-            ->willReturn(
-                UserFactory::createFromArray([
-                    'fullname' => $googleUser->name,
-                    'email' => strtolower($googleUser->email),
-                    'roles' => [new Role(1, 'user')],
-                    'status' => 'active',
-                    'verifiedEmail' => true,
-                    'coverPhoto' => 'cover.jpg'
-                ])
-            );
+            ->willReturnCallback(fn($user, $roles) => $user);
 
-        // 3️⃣ Mock issueAuthForUser
-        $serviceMock = $this->getMockBuilder(UserService::class)
-            ->setConstructorArgs([$this->repositoryMock])
-            ->onlyMethods(['issueAuthForUser'])
-            ->getMock();
+        // 3️⃣ Mock UserSecurityService (sécurité)
+        $this->securityMock->method('resetFailedAttempts');
+        $this->securityMock->method('incrementFailedAttempts');
+        $this->securityMock->method('acquireLock')->willReturn(true);
+        $this->securityMock->method('releaseLock')->willReturn(true);
 
-        $serviceMock->method('issueAuthForUser')->willReturn('fake-jwt-token');
+        // 4️⃣ Créer un vrai AuthService (pas mock)
+        $authService = new AuthService($this->repositoryMock, $this->securityMock);
 
-        // 4️⃣ Capturer les flash messages et les redirections
+        // Surcharge issueAuthForUser pour éviter d’avoir besoin de JWT réel
+        $authService = new class($this->repositoryMock, $this->securityMock) extends AuthService {
+            public function issueAuthForUser(User $user): string
+            {
+                return 'fake-jwt-token';
+            }
+        };
+
+        // 5️⃣ Capturer les flash messages et redirections
         $flashMessages = [];
         FlashMessage::setHandler(function ($type, $msg) use (&$flashMessages) {
-            if (!isset($flashMessages[$type]) || !is_array($flashMessages[$type])) {
-                $flashMessages[$type] = [];
-            }
+            if (!isset($flashMessages[$type])) $flashMessages[$type] = [];
             $flashMessages[$type][] = $msg;
         });
 
-        // Initialise comme string vide pour éviter le warning Intelephense
         $redirectUrl = '';
         RedirectResponse::setHandler(function ($url) use (&$redirectUrl) {
             $redirectUrl = $url;
         });
 
-        // 5️⃣ Appel de la méthode
-        $serviceMock->loginWithGoogleOAuth($googleUser);
+        // 6️⃣ Appel de la méthode
+        $authService->loginWithGoogleOAuth($googleUser);
 
-        // 6️⃣ Assertions flash
+        // 7️⃣ Assertions flash
         $this->assertArrayHasKey('success', $flashMessages, 'Un message de succès doit être ajouté');
         $this->assertNotEmpty($flashMessages['success'][0], 'Le message de succès ne doit pas être vide');
         $this->assertStringContainsString('Welcome', $flashMessages['success'][0]);
 
-        // 7️⃣ Assertions redirection
+        // 8️⃣ Assertions redirection
         $this->assertNotEmpty($redirectUrl, 'Une redirection doit être déclenchée');
         $this->assertStringContainsString('/finalize-registration', $redirectUrl);
     }

@@ -179,31 +179,40 @@ $(async function () {
   // garde-fou double-submit
   let submitting = false;
 
+  // Empêche submit natif sur Entrée et déclenche le bouton
+  $("#loginForm").on("keydown", "input", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault(); // stop submit natif
+      $("#custom-login-login").click(); // déclenche ton bouton JS
+    }
+  });
+
+  // Submit AJAX standard
   $("#loginForm").on("submit", async function (event) {
     event.preventDefault();
     if (submitting) return;
     submitting = true;
     setSubmitting(true);
 
-    const rawNext =
-      new URLSearchParams(location.search).get("next") ||
-      document.referrer ||
-      "/";
-    const u = new URL(rawNext, location.origin);
-    const nextRelative =
-      u.origin === location.origin ? u.pathname + u.search : "/";
-
+    // ✅ Récupère next directement depuis le formulaire
+    let rawNext = $("#nextParam").val() || "/";
     try {
-      const resp = await saAuthFetch(
-        `/login?next=${encodeURIComponent(nextRelative)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-          },
-          body: $(this).serialize(),
-        }
-      );
+      const u = new URL(rawNext, location.origin);
+      rawNext = u.origin === location.origin ? u.pathname + u.search : "/";
+    } catch {
+      rawNext = "/";
+    }
+    const nextRelative = rawNext;
+
+    // fetch AJAX
+    try {
+      const resp = await saAuthFetch("/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        },
+        body: $(this).serialize(),
+      });
 
       if (resp.ok) {
         const data = await resp.json().catch(() => ({}));
@@ -216,6 +225,7 @@ $(async function () {
             SA.event("auth_login_success", { method: "email_password" });
           }
 
+          // Détermine la redirection
           let redirect = data.redirect;
           if (!redirect) {
             let after = null;
@@ -234,7 +244,7 @@ $(async function () {
           localStorage.removeItem("flash_closed");
 
           // modal success
-          closePopup(); // ferme le loading
+          closePopup();
           showMessage("success", {
             text: data.message || "Welcome!",
             module: "Auth",
@@ -250,7 +260,7 @@ $(async function () {
             location.assign(redirect);
           }, 700);
 
-          return; // stop ici
+          return;
         }
 
         // Réponse non success
@@ -261,7 +271,7 @@ $(async function () {
           });
         }
 
-        closePopup(); // ferme le loading
+        closePopup();
         showErrorMessage(data?.error || "Unexpected response.");
       } else {
         // HTTP non OK
@@ -274,14 +284,13 @@ $(async function () {
           failedAttempts = MAX_ATTEMPTS;
           localStorage.setItem("loginFailedAttempts", String(failedAttempts));
           localStorage.setItem("lastFailedTime", String(Date.now()));
-          // Analytics
           if (window.SA && typeof SA.event === "function") {
             SA.event("auth_login_error", {
               method: "email_password",
               reason: "blocked",
             });
           }
-          closePopup(); // ferme le loading
+          closePopup();
           showBlockedStatus(data.remaining || 10);
         } else {
           if (window.SA && typeof SA.event === "function") {
@@ -290,21 +299,20 @@ $(async function () {
               reason: (data && data.error) || "http_error",
             });
           }
-          closePopup(); // ferme le loading
+          closePopup();
           showErrorMessage(
             (data && data.error) ?? "An error occurred while sending the data."
           );
         }
       }
     } catch {
-      // erreur réseau
       if (window.SA && typeof SA.event === "function") {
         SA.event("auth_login_error", {
           method: "email_password",
           reason: "network_error",
         });
       }
-      closePopup(); // ferme le loading
+      closePopup();
       showErrorMessage("Network error.");
     } finally {
       submitting = false;
