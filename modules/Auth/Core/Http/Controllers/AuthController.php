@@ -53,7 +53,7 @@ class AuthController extends Controller
 
     public function home(): HtmlResponse
     {
-        $title = (string) cfg('user.title', 'Login');
+        $title = cfg('auth.title', 'Login');
         $this->setPageTitle($title);
 
         $styles = module_asset('Auth/Core', 'assets/css/home.css');
@@ -67,7 +67,7 @@ class AuthController extends Controller
 
     public function showLoginForm(): HtmlResponse
     {
-        $title = (string) cfg('user.title', 'Login');
+        $title = (string) cfg('auth.title', 'Login');
         $this->setPageTitle($title);
 
         $styles  = module_asset('Auth/Core', 'assets/css/login.css');
@@ -83,7 +83,7 @@ class AuthController extends Controller
 
     public function showRegistrationForm(): HtmlResponse
     {
-        $title = (string) cfg('user.title', 'Register');
+        $title = (string) cfg('auth.title', 'Register');
         $this->setPageTitle($title);
 
         $styles  = module_asset('Auth/Core', 'assets/css/register.css');
@@ -189,7 +189,7 @@ class AuthController extends Controller
 
     public function showSyncPage(): HtmlResponse
     {
-        $title = (string) cfg('user.title', 'Login');
+        $title = (string) cfg('auth.title', 'Login');
         $this->setPageTitle($title);
 
         $styles = module_asset('Auth/Core', 'assets/css/home.css');
