@@ -4,6 +4,7 @@ namespace Modules\User\Core\Http\Controllers;
 
 use App\Controllers\Controller;
 use Ivi\Http\HtmlResponse;
+use Modules\Auth\Core\Helpers\AuthMiddleware;
 use Modules\Auth\Core\Helpers\AuthUser;
 
 class HomeController extends Controller
@@ -11,11 +12,10 @@ class HomeController extends Controller
     public function index(): HtmlResponse
     {
         // Titre de la page
-        $title = (string)(cfg(strtolower('User') . '.title', 'Softadastra User') ?: 'Softadastra User');
-        $this->setPageTitle($title);
+        // $title = cfg('user.title', 'Softadastra User');
+        // $this->setPageTitle($title);
 
-        $auth = new AuthUser();
-        $user = $auth->getUser();
+        $user = AuthMiddleware::handle();
 
         $userData = null;
         $message  = "Hello guest!";
@@ -37,7 +37,7 @@ class HomeController extends Controller
         $scripts = module_asset('User/Core', 'assets/js/script.js');
 
         return $this->view(strtolower('User') . '::home', [
-            'title'    => $title,
+            'title'    => 'My Account',
             'message'  => $message,
             'user'     => $userData,
             'styles'   => $styles,
