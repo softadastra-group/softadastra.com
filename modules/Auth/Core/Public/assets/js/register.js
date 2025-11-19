@@ -200,7 +200,7 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
               text:
                 data?.message || "Your account has been created successfully.",
               onSuccess: () => {
-                // window.location.href = to; // ← redirection commentée
+                window.location.href = to; // ← redirection commentée
                 console.log("Registration succeeded, redirection skipped.");
               },
             });

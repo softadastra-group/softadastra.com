@@ -42,10 +42,10 @@ class UserHelper
     /**
      * Génère un token aléatoire sécurisé.
      */
-    public static function generateToken(int $length = 64): string
-    {
-        return bin2hex(random_bytes(intdiv($length, 2)));
-    }
+    // public static function generateToken(int $length = 64): string
+    // {
+    //     return bin2hex(random_bytes(intdiv($length, 2)));
+    // }
 
     /**
      * Politique de mot de passe stricte.
@@ -110,8 +110,6 @@ class UserHelper
             'name'  => $user->getFullName(),
             'email' => (string) $user->getEmail(),
             'roles' => $user->getRoleNames(), // ✔ NOM CORRECT
-
-            // Les champs iat et exp seront ajoutés automatiquement par JWT->generate()
         ];
 
         // Options conformes à ta classe JWT

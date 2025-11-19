@@ -8,7 +8,6 @@ use App\Controllers\Controller;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\HtmlResponse;
 use Ivi\Core\Services\GoogleService;
-use Ivi\Core\Validation\ValidationException;
 use Modules\Auth\Core\Services\UserService;
 use Ivi\Http\Request;
 use Modules\Auth\Core\Helpers\AuthUser;
@@ -33,6 +32,19 @@ class AuthController extends Controller
 
         // Inject UserService (qui contient le wrapper vers UserRegistrationService)
         $this->users = make(UserService::class);
+    }
+
+    // Logout
+    public function logout(): JsonResponse
+    {
+        // Supprime session + cookie
+        AuthUser::logout();
+
+        // Retourne un JSON pour que le frontend SPA puisse réagir
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Logged out successfully.'
+        ]);
     }
 
     // ---------------------------------------------------
@@ -132,6 +144,7 @@ class AuthController extends Controller
             }
 
             $user = $this->users->findByEmail($email);
+            error_log("findByEmail('$email') returned user ID: " . ($user ? $user->getId() : 'null'));
 
             if (!$user || !UserHelper::verifyPassword($password, $user->getPassword())) {
                 return new JsonResponse([

@@ -48,9 +48,12 @@ class AuthUser
         if (!$this->token) return null;
 
         try {
-            $this->jwt->check($this->token, ['key' => env('JWT_SECRET')]);
-            return $this->jwt->getPayload($this->token);
-        } catch (\Throwable) {
+            $this->jwt->check($this->token, ['key' => JWT_SECRET]);
+            $payload = $this->jwt->getPayload($this->token);
+            error_log("JWT payload: " . json_encode($payload));
+            return $payload;
+        } catch (\Throwable $e) {
+            error_log("JWT error: " . $e->getMessage());
             return null;
         }
     }
@@ -97,12 +100,13 @@ class AuthUser
         $_SESSION['roles']      = $user->getRoleNames() ?? [];
 
         $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-        setcookie('token', $token, [
-            'expires'  => time() + $validity,
-            'path'     => '/',
-            'secure'   => $isHttps,
-            'httponly' => true,
-            'samesite' => 'Lax',
+
+        setcookie("token", $token, [
+            "expires"  => time() + $validity,
+            "path"     => "/",
+            "secure"   => $isHttps,
+            "httponly" => false,       // <--- IMPORTANT: SPA doit lire le cookie
+            "samesite" => "Lax",
         ]);
     }
 
@@ -125,7 +129,16 @@ class AuthUser
             session_unset();
             session_destroy();
         }
-        setcookie('token', '', time() - 3600, '/');
+
+        // Supprime le cookie token côté client
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+        setcookie('token', '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'secure'   => $isHttps,
+            'httponly' => true,   // cookie HTTP-only pour la SPA
+            'samesite' => 'Lax',
+        ]);
     }
 
     /**

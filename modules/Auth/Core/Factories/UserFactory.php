@@ -69,6 +69,9 @@ class UserFactory
      */
     public static function createFromDb(array $dbRow, array $rolesDB = []): User
     {
+        // 🔹 Logging pour debug
+        error_log("Fetched userRow: " . json_encode($dbRow));
+
         $roles = [];
         foreach ($rolesDB as $r) {
             if (isset($r['id'], $r['name'])) {
@@ -81,24 +84,30 @@ class UserFactory
             $roles[] = UserHelper::defaultRole();
         }
 
-        return self::createFromArray([
-            'id' => $dbRow['id'],
-            'fullname' => $dbRow['fullname'],
-            'email' => $dbRow['email'],
-            'photo' => $dbRow['photo'] ?? null,
-            'password' => $dbRow['password'] ?? null,
-            'roles' => $roles,
-            'status' => $dbRow['status'] ?? 'active',
+        // Crée l'utilisateur sans ID (createFromArray peut ne pas gérer 'id')
+        $user = self::createFromArray([
+            'fullname'      => $dbRow['fullname'],
+            'email'         => $dbRow['email'],
+            'photo'         => $dbRow['photo'] ?? null,
+            'password'      => $dbRow['password'] ?? null,
+            'roles'         => $roles,
+            'status'        => $dbRow['status'] ?? 'active',
             'verifiedEmail' => (bool) ($dbRow['verified_email'] ?? false),
-            'coverPhoto' => $dbRow['cover_photo'] ?? null,
-            'accessToken' => $dbRow['access_token'] ?? null,
-            'refreshToken' => $dbRow['refresh_token'] ?? null,
-            'bio' => $dbRow['bio'] ?? null,
-            'phone' => $dbRow['phone'] ?? null,
-            'username' => $dbRow['username'] ?? null,
-            'cityName' => $dbRow['city_name'] ?? null,
-            'countryName' => $dbRow['country_name'] ?? null,
+            'coverPhoto'    => $dbRow['cover_photo'] ?? null,
+            'accessToken'   => $dbRow['access_token'] ?? null,
+            'refreshToken'  => $dbRow['refresh_token'] ?? null,
+            'bio'           => $dbRow['bio'] ?? null,
+            'phone'         => $dbRow['phone'] ?? null,
+            'username'      => $dbRow['username'] ?? null,
+            'cityName'      => $dbRow['city_name'] ?? null,
+            'countryName'   => $dbRow['country_name'] ?? null,
             'countryImageUrl' => $dbRow['country_image_url'] ?? null,
         ]);
+
+        // 🔹 Fix de l'ID si createFromArray ne le gère pas
+        $user->setId((int)$dbRow['id']);
+        error_log("Created User object with ID: " . $user->getId());
+
+        return $user;
     }
 }

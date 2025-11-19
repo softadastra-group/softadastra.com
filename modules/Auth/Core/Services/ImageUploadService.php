@@ -12,12 +12,12 @@ use Modules\Auth\Core\Repositories\UserRepository;
 
 class ImageUploadService extends BaseService
 {
-    private UserRepository $repository;
+    private UserSecurityService $userSecurityService;
 
-    public function __construct(UserRepository $repository)
-    {
-        parent::__construct();
-        $this->repository = $repository;
+    public function __construct(
+        UserRepository $repository,
+    ) {
+        parent::__construct($repository);
     }
 
     public function updatePhoto(array $files): void

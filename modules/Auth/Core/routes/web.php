@@ -37,8 +37,8 @@ $router->get('/auth/sync', [AuthController::class, 'showSyncPage']);
 $router->get('/auth/finalize-registration', [AuthController::class, 'showFinalizeRegistrationForm']);
 $router->post('/auth/finalize-registration', [AuthController::class, 'handleFinalizeRegistration']);
 
-// Logout
-$router->get('/auth/logout', [AuthController::class, 'logout']);
+// Route logout
+$router->post('/auth/logout', [AuthController::class, 'logout']);
 
 // API routes
 $router->get('/auth/api/me', [AuthController::class, 'currentUser']);
