@@ -2,22 +2,20 @@
 
 namespace Modules\Auth\Core\Tests\Services;
 
-use Ivi\Core\Container\Container;
 use Ivi\Core\Utils\FlashMessage;
 use PHPUnit\Framework\TestCase;
-use Modules\Auth\Core\Services\UserService;
-use Modules\Auth\Core\Repositories\UserRepository;
-use Modules\Auth\Core\ValueObjects\Role;
+use Modules\User\Core\Repositories\UserRepository;
+use Modules\User\Core\ValueObjects\Role;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\RedirectResponse;
-use Modules\Auth\Core\Factories\UserFactory;
-use Modules\Auth\Core\Helpers\UserHelper;
-use Modules\Auth\Core\Models\User;
+use Modules\User\Core\Factories\UserFactory;
+use Modules\User\Core\Helpers\UserHelper;
+use Modules\User\Core\Models\User;
 use Modules\Auth\Core\Services\AuthService;
-use Modules\Auth\Core\Services\UserRegistrationService;
-use Modules\Auth\Core\Services\UserSecurityService;
-use Modules\Auth\Core\Validator\UserValidator;
-use Modules\Auth\Core\ValueObjects\Email;
+use Modules\User\Core\Services\UserRegistrationService;
+use Modules\User\Core\Services\UserSecurityService;
+use Modules\User\Core\Validator\UserValidator;
+use Modules\User\Core\ValueObjects\Email;
 
 final class UserServiceTest extends TestCase
 {

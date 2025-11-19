@@ -1,11 +1,11 @@
 <?php
 
-namespace Modules\Auth\Core\Factories;
+namespace Modules\User\Core\Factories;
 
-use Modules\Auth\Core\Helpers\UserHelper;
-use Modules\Auth\Core\Models\User;
-use Modules\Auth\Core\ValueObjects\Email;
-use Modules\Auth\Core\ValueObjects\Role;
+use Modules\User\Core\Helpers\UserHelper;
+use Modules\User\Core\Models\User;
+use Modules\User\Core\ValueObjects\Email;
+use Modules\User\Core\ValueObjects\Role;
 
 class UserFactory
 {

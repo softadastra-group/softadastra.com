@@ -3,9 +3,9 @@
 namespace Modules\Auth\Core\Helpers;
 
 use Ivi\Core\Jwt\JWT;
-use Modules\Auth\Core\Models\User;
-use Modules\Auth\Core\Repositories\UserRepository;
-use Modules\Auth\Core\Helpers\UserHelper;
+use Modules\User\Core\Models\User;
+use Modules\User\Core\Repositories\UserRepository;
+use Modules\User\Core\Helpers\UserHelper;
 
 class AuthUser
 {

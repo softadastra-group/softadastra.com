@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Modules\Auth\Core\Services;
+namespace Modules\User\Core\Services;
 
 use Cloudinary\Api\Upload\UploadApi;
 use Exception;
 use Ivi\Http\JsonResponse;
-use Modules\Auth\Core\Image\PhotoHandler;
-use Modules\Auth\Core\Repositories\UserRepository;
+use Modules\Utils\Image\PhotoHandler;
+use Modules\User\Core\Repositories\UserRepository;
 
 class ImageUploadService extends BaseService
 {

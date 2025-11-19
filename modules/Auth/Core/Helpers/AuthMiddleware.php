@@ -3,7 +3,7 @@
 namespace Modules\Auth\Core\Helpers;
 
 use Exception;
-use Modules\Auth\Core\Models\User;
+use Modules\User\Core\Models\User;
 
 class AuthMiddleware
 {

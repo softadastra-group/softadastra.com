@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Auth\Core\Services;
+namespace Modules\User\Core\Services;
 
 use User;
 

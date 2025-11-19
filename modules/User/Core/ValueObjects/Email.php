@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Modules\Auth\Core\ValueObjects;
+namespace Modules\User\Core\ValueObjects;
 
 use InvalidArgumentException;
 

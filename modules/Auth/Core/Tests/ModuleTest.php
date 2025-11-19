@@ -5,8 +5,6 @@ namespace Modules\Auth\Core\Tests;
 use PHPUnit\Framework\TestCase;
 use App\Modules\ModuleContract;
 use Ivi\Core\Router\Router;
-use Modules\Auth\Core\Tests\Fakes\FakeRouter;
-
 
 final class ModuleTest extends TestCase
 {
