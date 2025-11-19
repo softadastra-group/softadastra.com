@@ -29,7 +29,6 @@ class HomeController extends Controller
             ];
             $message = "Hello " . htmlspecialchars($user->getUsername()) . "!";
         } else {
-            // optional: redirect to login
             // header('Location: /auth/login'); exit;
         }
 
