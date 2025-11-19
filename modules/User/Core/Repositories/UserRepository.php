@@ -2,16 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Modules\Auth\Core\Repositories;
+namespace Modules\User\Core\Repositories;
 
-use Ivi\Core\ORM\Connection;
 use Ivi\Core\ORM\QueryBuilder;
 use Ivi\Core\ORM\Repository;
-use Modules\Auth\Core\Models\User;
-use Modules\Auth\Core\Factories\UserFactory;
-use Modules\Auth\Core\Helpers\UserHelper;
-use Modules\Auth\Core\ValueObjects\Email;
-use Modules\Auth\Core\ValueObjects\Role;
+use Modules\User\Core\Models\User;
+use Modules\User\Core\Factories\UserFactory;
+use Modules\User\Core\Helpers\UserHelper;
+use Modules\User\Core\ValueObjects\Email;
+use Modules\User\Core\ValueObjects\Role;
 use RuntimeException;
 
 class UserRepository extends Repository

@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Auth\Core\Models;
+namespace Modules\User\Core\Models;
 
 class Table
 {

@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Modules\Auth\Core\Services;
 
 use Ivi\Core\Utils\FlashMessage;
-use Modules\Auth\Core\Models\User;
-use Modules\Auth\Core\Repositories\UserRepository;
-use Modules\Auth\Core\Helpers\UserHelper;
+use Modules\User\Core\Models\User;
+use Modules\User\Core\Repositories\UserRepository;
+use Modules\User\Core\Helpers\UserHelper;
 use Ivi\Http\RedirectResponse;
-use Modules\Auth\Core\Factories\UserFactory;
-use Modules\Auth\Core\ValueObjects\Role;
+use Modules\User\Core\Factories\UserFactory;
+use Modules\User\Core\Services\BaseService;
+use Modules\User\Core\Services\UserSecurityService;
+use Modules\User\Core\ValueObjects\Role;
 
 class AuthService extends BaseService
 {

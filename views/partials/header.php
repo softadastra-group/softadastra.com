@@ -17,7 +17,6 @@
             <?= menu([
                 '/'        => 'Home',
                 '/docs'    => 'Docs',
-                '/users'   => 'Users',
                 '/auth'    => 'Auth',
                 '/user'    => 'Account'
             ], ['class' => 'nav-links d-flex flex-column flex-md-row gap-3 my-2 my-md-0']) ?>

@@ -1,11 +1,11 @@
 <?php
 
-namespace Modules\Auth\Core\Models;
+namespace Modules\User\Core\Models;
 
 use Ivi\Core\ORM\Model;
 use DateTimeImmutable;
-use Modules\Auth\Core\ValueObjects\Email;
-use Modules\Auth\Core\ValueObjects\Role;
+use Modules\User\Core\ValueObjects\Email;
+use Modules\User\Core\ValueObjects\Role;
 
 class User extends Model
 {

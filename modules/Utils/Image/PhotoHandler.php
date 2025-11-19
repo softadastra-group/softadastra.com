@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Auth\Core\Image;
+namespace Modules\Utils\Image;
 
 use Exception;
 

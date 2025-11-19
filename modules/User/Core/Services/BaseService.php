@@ -1,14 +1,14 @@
 <?php
 
-namespace Modules\Auth\Core\Services;
+namespace Modules\User\Core\Services;
 
 use Exception;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\Response;
 use Modules\Auth\Core\Helpers\AuthUser;
-use Modules\Auth\Core\Image\PhotoHandler;
-use Modules\Auth\Core\Repositories\UserRepository;
-use Modules\Auth\Core\Validator\UserValidator;
+use Modules\Utils\Image\PhotoHandler;
+use Modules\User\Core\Repositories\UserRepository;
+use Modules\User\Core\Validator\UserValidator;
 
 abstract class BaseService
 {

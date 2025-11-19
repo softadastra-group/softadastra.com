@@ -8,10 +8,10 @@ use App\Controllers\Controller;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\HtmlResponse;
 use Ivi\Core\Services\GoogleService;
-use Modules\Auth\Core\Services\UserService;
+use Modules\User\Core\Services\UserService;
 use Ivi\Http\Request;
 use Modules\Auth\Core\Helpers\AuthUser;
-use Modules\Auth\Core\Helpers\UserHelper;
+use Modules\User\Core\Helpers\UserHelper;
 
 class AuthController extends Controller
 {
@@ -53,13 +53,10 @@ class AuthController extends Controller
 
     public function home(): HtmlResponse
     {
-        $title = cfg('auth.title', 'Login');
-        $this->setPageTitle($title);
-
         $styles = module_asset('Auth/Core', 'assets/css/home.css');
 
         return $this->view('auth::home', [
-            'title'     => $title,
+            'title'     => 'Auth Home',
             'styles'    => $styles,
             'googleUrl' => $this->google->loginUrl(),
         ]);
@@ -67,30 +64,23 @@ class AuthController extends Controller
 
     public function showLoginForm(): HtmlResponse
     {
-        $title = (string) cfg('auth.title', 'Login');
-        $this->setPageTitle($title);
-
         $styles  = module_asset('Auth/Core', 'assets/css/login.css');
         $scripts = module_asset('Auth/Core', 'assets/js/login.js');
 
         return $this->view('auth::login', [
-            'title'     => $title,
+            'title'     => 'Login',
             'styles'    => $styles,
             'scripts'   => $scripts,
-            'googleUrl' => $this->google->loginUrl(),
         ]);
     }
 
     public function showRegistrationForm(): HtmlResponse
     {
-        $title = (string) cfg('auth.title', 'Register');
-        $this->setPageTitle($title);
-
         $styles  = module_asset('Auth/Core', 'assets/css/register.css');
         $scripts = module_asset('Auth/Core', 'assets/js/register.js');
 
         return $this->view('auth::register', [
-            'title'     => $title,
+            'title'     => 'Register',
             'styles'    => $styles,
             'scripts'   => $scripts,
             'googleUrl' => $this->google->loginUrl(),
@@ -189,13 +179,10 @@ class AuthController extends Controller
 
     public function showSyncPage(): HtmlResponse
     {
-        $title = (string) cfg('auth.title', 'Login');
-        $this->setPageTitle($title);
-
         $styles = module_asset('Auth/Core', 'assets/css/home.css');
 
         return $this->view('auth::sync', [
-            'title'     => $title,
+            'title'     => 'Sync Page',
             'styles'    => $styles
         ]);
     }

@@ -2,15 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Modules\Auth\Core\Services;
+namespace Modules\User\Core\Services;
 
 use Ivi\Core\Utils\FlashMessage;
 use Ivi\Http\JsonResponse;
-use Modules\Auth\Core\Factories\UserFactory;
+use Modules\User\Core\Factories\UserFactory;
 use Modules\Auth\Core\Helpers\AuthUser;
-use Modules\Auth\Core\Helpers\UserHelper;
-use Modules\Auth\Core\Repositories\UserRepository;
-use Modules\Auth\Core\Validator\UserValidator;
+use Modules\Auth\Core\Services\AuthService;
+use Modules\User\Core\Helpers\UserHelper;
+use Modules\User\Core\Repositories\UserRepository;
+use Modules\User\Core\Validator\UserValidator;
+use Modules\User\Core\ValueObjects\Email;
 
 class UserRegistrationService extends BaseService
 {
@@ -34,37 +36,50 @@ class UserRegistrationService extends BaseService
             $emailRaw = strtolower(trim($email));
             $passwordPlain = trim($password);
             $phoneNumber = trim($phone);
-            error_log("Normalized inputs: fullname='$fullname', email='$emailRaw', phone='$phoneNumber'");
 
-            // ---- 2) Validation rapide côté serveur
+            // ---- 2) Validation rapide
             $earlyErrors = [];
             if ($fullname === '') $earlyErrors['fullname'] = 'Full name is required.';
             if ($emailRaw === '' || !filter_var($emailRaw, FILTER_VALIDATE_EMAIL)) $earlyErrors['email'] = 'A valid email address is required.';
             if ($err = UserValidator::validatePassword($passwordPlain)) $earlyErrors['password'] = $err;
 
             if (!empty($earlyErrors)) {
-                error_log("Early validation errors: " . json_encode($earlyErrors));
+
+                // === TEST MODE ===
+                if ($this->jsonResponseHandler) {
+                    ($this->jsonResponseHandler)(
+                        new JsonResponse(['errors' => $earlyErrors], 422)
+                    );
+                }
+
                 return [
-                    'errors' => $earlyErrors,
-                    'token' => null,
-                    'user' => null,
-                    'message' => 'Validation failed.',
+                    'errors'   => $earlyErrors,
+                    'token'    => null,
+                    'user'     => null,
+                    'message'  => 'Validation failed.',
                     'redirect' => null,
                 ];
             }
 
-            // ---- 3) Création Email ValueObject
-            $emailObj = new \Modules\Auth\Core\ValueObjects\Email($emailRaw);
+            // ---- 3) Email value object
+            $emailObj = new Email($emailRaw);
 
             // ---- 4) Vérification unicité email
             $existingUser = $this->repository->findByEmail((string)$emailObj);
             if ($existingUser) {
-                error_log("Email '{$emailObj}' already exists in DB");
+
+                // === TEST MODE ===
+                if ($this->jsonResponseHandler) {
+                    ($this->jsonResponseHandler)(
+                        new JsonResponse(['error' => 'This email is already taken.'], 409)
+                    );
+                }
+
                 return [
-                    'errors' => ['email' => 'This email is already taken.'],
-                    'token' => null,
-                    'user' => null,
-                    'message' => 'Email already exists.',
+                    'errors'   => ['email' => 'This email is already taken.'],
+                    'token'    => null,
+                    'user'     => null,
+                    'message'  => 'Email already exists.',
                     'redirect' => null,
                 ];
             }
@@ -92,20 +107,29 @@ class UserRegistrationService extends BaseService
             }
             $userEntity->setUsername($username);
 
-            // ---- 7) Validation métier complète
+            // ---- 7) Validation métier
             $validator = $this->validator ?? new UserValidator($this->repository);
             $errors = $validator->validate($userEntity);
+
             if (!empty($errors)) {
+
+                // === TEST MODE ===
+                if ($this->jsonResponseHandler) {
+                    ($this->jsonResponseHandler)(
+                        new JsonResponse(['errors' => $errors], 422)
+                    );
+                }
+
                 return [
-                    'errors' => (array)$errors,
-                    'token' => null,
-                    'user' => null,
-                    'message' => 'Business validation failed.',
+                    'errors'   => (array)$errors,
+                    'token'    => null,
+                    'user'     => null,
+                    'message'  => 'Business validation failed.',
                     'redirect' => null,
                 ];
             }
 
-            // ---- 8) Persistance via repository
+            // ---- 8) Sauvegarde
             $savedUser = $this->repository->save($userEntity);
             if (!$savedUser->getId()) {
                 throw new \RuntimeException("User insertion failed, ID not generated.");
@@ -114,13 +138,23 @@ class UserRegistrationService extends BaseService
             // ---- 9) Auth / token
             $token = $this->auth->issueAuthForUser($savedUser);
 
-            // ---- 9b) Crée la session + cookie comme dans le login
+            // ---- 9b) Session + cookie
             AuthUser::setSessionAndCookie($savedUser, $token);
 
             // ---- 10) Redirect
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/'));
 
-            // ---- 11) Retour du tableau
+            // === TEST MODE ===
+            if ($this->jsonResponseHandler) {
+                ($this->jsonResponseHandler)(
+                    new JsonResponse([
+                        'message' => 'Account created successfully.',
+                        'token'   => $token,
+                    ], 201)
+                );
+            }
+
+            // ---- 11) Retour prod
             return [
                 'token'    => $token,
                 'user'     => $savedUser,
@@ -129,7 +163,13 @@ class UserRegistrationService extends BaseService
                 'redirect' => $redirect,
             ];
         } catch (\Throwable $e) {
-            error_log("Exception caught in register(): " . $e->getMessage());
+
+            // === TEST MODE ===
+            if ($this->jsonResponseHandler) {
+                ($this->jsonResponseHandler)(
+                    new JsonResponse(['error' => $e->getMessage()], 500)
+                );
+            }
 
             return [
                 'errors'   => ['exception' => $e->getMessage()],
@@ -140,6 +180,7 @@ class UserRegistrationService extends BaseService
             ];
         }
     }
+
 
     public function finalizeRegistration(array $post): void
     {
