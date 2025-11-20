@@ -29,7 +29,7 @@ class UserRegistrationService extends BaseService
     public function register(string $fullname, string $email, string $password, string $phone): array
     {
         try {
-            error_log("register() called with fullname='$fullname', email='$email', phone='$phone'");
+            log_info("register() called", "fullname={$fullname}, email={$email}, phone={$phone}");
 
             // ---- 1) Normalisation entrée
             $fullname = trim($fullname);
@@ -44,8 +44,8 @@ class UserRegistrationService extends BaseService
             if ($err = UserValidator::validatePassword($passwordPlain)) $earlyErrors['password'] = $err;
 
             if (!empty($earlyErrors)) {
+                log_warning($earlyErrors, 'Early validation failed');
 
-                // === TEST MODE ===
                 if ($this->jsonResponseHandler) {
                     ($this->jsonResponseHandler)(
                         new JsonResponse(['errors' => $earlyErrors], 422)
@@ -67,8 +67,8 @@ class UserRegistrationService extends BaseService
             // ---- 4) Vérification unicité email
             $existingUser = $this->repository->findByEmail((string)$emailObj);
             if ($existingUser) {
+                log_warning(['email' => (string)$emailObj], 'Email already taken');
 
-                // === TEST MODE ===
                 if ($this->jsonResponseHandler) {
                     ($this->jsonResponseHandler)(
                         new JsonResponse(['error' => 'This email is already taken.'], 409)
@@ -112,8 +112,8 @@ class UserRegistrationService extends BaseService
             $errors = $validator->validate($userEntity);
 
             if (!empty($errors)) {
+                log_warning((array)$errors, 'Business validation failed');
 
-                // === TEST MODE ===
                 if ($this->jsonResponseHandler) {
                     ($this->jsonResponseHandler)(
                         new JsonResponse(['errors' => $errors], 422)
@@ -144,7 +144,8 @@ class UserRegistrationService extends BaseService
             // ---- 10) Redirect
             $redirect = $this->withAfterLoginHash($this->safeNextFromRequest('/'));
 
-            // === TEST MODE ===
+            log_info(['user_id' => $savedUser->getId(), 'token' => $token], 'Account created successfully');
+
             if ($this->jsonResponseHandler) {
                 ($this->jsonResponseHandler)(
                     new JsonResponse([
@@ -154,7 +155,6 @@ class UserRegistrationService extends BaseService
                 );
             }
 
-            // ---- 11) Retour prod
             return [
                 'token'    => $token,
                 'user'     => $savedUser,
@@ -163,8 +163,8 @@ class UserRegistrationService extends BaseService
                 'redirect' => $redirect,
             ];
         } catch (\Throwable $e) {
+            log_error($e->getMessage(), 'Exception during registration');
 
-            // === TEST MODE ===
             if ($this->jsonResponseHandler) {
                 ($this->jsonResponseHandler)(
                     new JsonResponse(['error' => $e->getMessage()], 500)
@@ -180,6 +180,7 @@ class UserRegistrationService extends BaseService
             ];
         }
     }
+
 
 
     public function finalizeRegistration(array $post): void
