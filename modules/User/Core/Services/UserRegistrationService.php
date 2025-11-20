@@ -26,22 +26,27 @@ class UserRegistrationService extends BaseService
         $this->auth = $auth;
     }
 
-    public function register(string $fullname, string $email, string $password, string $phone): array
+    public function register(string $fullname, string $email, string $password): array
     {
         try {
-            log_info("register() called", "fullname={$fullname}, email={$email}, phone={$phone}");
+            log_info("register() called", "fullname={$fullname}, email={$email}");
 
             // ---- 1) Normalisation entrée
-            $fullname = trim($fullname);
-            $emailRaw = strtolower(trim($email));
+            $fullname      = trim($fullname);
+            $emailRaw      = strtolower(trim($email));
             $passwordPlain = trim($password);
-            $phoneNumber = trim($phone);
 
             // ---- 2) Validation rapide
             $earlyErrors = [];
-            if ($fullname === '') $earlyErrors['fullname'] = 'Full name is required.';
-            if ($emailRaw === '' || !filter_var($emailRaw, FILTER_VALIDATE_EMAIL)) $earlyErrors['email'] = 'A valid email address is required.';
-            if ($err = UserValidator::validatePassword($passwordPlain)) $earlyErrors['password'] = $err;
+            if ($fullname === '') {
+                $earlyErrors['fullname'] = 'Full name is required.';
+            }
+            if ($emailRaw === '' || !filter_var($emailRaw, FILTER_VALIDATE_EMAIL)) {
+                $earlyErrors['email'] = 'A valid email address is required.';
+            }
+            if ($err = UserValidator::validatePassword($passwordPlain)) {
+                $earlyErrors['password'] = $err;
+            }
 
             if (!empty($earlyErrors)) {
                 log_warning($earlyErrors, 'Early validation failed');
@@ -95,7 +100,6 @@ class UserRegistrationService extends BaseService
                 'verified_email' => 0,
                 'coverPhoto'     => UserHelper::defaultCover(),
                 'bio'            => UserHelper::defaultBio(),
-                'phone'          => $phoneNumber,
             ];
 
             $userEntity = UserFactory::createFromArray($userData);
@@ -180,7 +184,6 @@ class UserRegistrationService extends BaseService
             ];
         }
     }
-
 
 
     public function finalizeRegistration(array $post): void

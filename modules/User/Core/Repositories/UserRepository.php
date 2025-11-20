@@ -238,8 +238,6 @@ class UserRepository extends Repository
         $user->save();
     }
 
-
-
     /**
      * Met à jour un champ spécifique d’un utilisateur (ex: photo, cover_photo) avec Cloudinary public_id optionnel.
      */
