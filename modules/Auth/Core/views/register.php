@@ -77,22 +77,7 @@ $next = isset($_GET['next']) ? trim($_GET['next']) : '';
     window.addEventListener("DOMContentLoaded", () => {
         if (window.SA && typeof SA.event === "function") {
             SA.event("auth_register_view", {
-                method: "email+password+phone"
-            });
-        }
-    });
-
-    // 2) Sélection pays (Uganda/DRC) dans la dropdown
-    document.getElementById("country-dropdown")?.addEventListener("click", (e) => {
-        const opt = e.target.closest(".country-option");
-        if (!opt) return;
-        const code = opt.getAttribute("data-code");
-        const flag = opt.getAttribute("data-flag");
-        if (window.SA && typeof SA.event === "function") {
-            SA.event("country_select", {
-                code,
-                flag,
-                context: "register"
+                method: "email+password"
             });
         }
     });

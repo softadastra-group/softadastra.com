@@ -28,34 +28,34 @@
 </div>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Attache l'événement logout à tous les boutons avec la classe .btn-logout
-        document.querySelectorAll('.btn-logout').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.preventDefault(); // empêche le comportement par défaut
-                try {
-                    const res = await fetch('/auth/logout', {
-                        method: 'POST', // ou GET selon ta route
-                        credentials: 'include',
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
+        // Utilisation de delegation : on écoute sur le document entier
+        document.body.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-logout');
+            if (!btn) return;
 
-                    const data = await res.json();
+            e.preventDefault(); // empêche le comportement par défaut
 
-                    if (data.success) {
-                        // Nettoyage côté frontend si tu as un store ou localStorage
-                        if (window.userStore) window.userStore.reset();
-                        localStorage.removeItem('user'); // si tu stockes l'user
-                        // Redirection vers la page de login
-                        window.location.href = '/auth/login';
-                    } else {
-                        console.warn('Logout failed', data);
+            try {
+                const res = await fetch('/auth/logout', {
+                    method: 'POST', // ou GET selon ta route
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json'
                     }
-                } catch (err) {
-                    console.error('Logout request failed', err);
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    if (window.userStore) window.userStore.reset();
+                    localStorage.removeItem('user');
+                    window.location.href = '/auth/login';
+                } else {
+                    console.warn('Logout failed', data);
                 }
-            });
+            } catch (err) {
+                console.error('Logout request failed', err);
+            }
         });
     });
 </script>

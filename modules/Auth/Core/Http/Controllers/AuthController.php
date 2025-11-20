@@ -66,6 +66,8 @@ class AuthController extends Controller
     {
         $styles  = module_asset('Auth/Core', 'assets/css/login.css');
         $scripts = module_asset('Auth/Core', 'assets/js/login.js');
+        error_log("CSRF token session: " . ($_SESSION['csrf_token'] ?? 'NULL'));
+
 
         return $this->view('auth::login', [
             'title'     => 'Login',
@@ -113,68 +115,83 @@ class AuthController extends Controller
     }
 
     // ---------------------------------------------------
-    // POST LOGIN
+    // POST LOGIN (SPA-friendly)
     // ---------------------------------------------------
     public function handleLogin(Request $request): JsonResponse
     {
         $data = $request->all();
-        $email    = (string)($data['email'] ?? '');
+        $email = (string)($data['email'] ?? '');
         $password = (string)($data['password'] ?? '');
-        $next     = (string)($data['next'] ?? '/');
+        $next = (string)($data['next'] ?? '/');
+
+        // Lire token CSRF : body (csrf_token) ou header X-CSRF-TOKEN
+        $csrfFromBody = $data['csrf_token'] ?? null;
+        $csrfFromHeader = $request->header('X-CSRF-TOKEN'); // <-- use public accessor
+        $csrfToken = $csrfFromBody ?? $csrfFromHeader ?? null;
 
         try {
+            // Vérification CSRF : renvoie une exception en cas d'échec
+            \Ivi\Core\Security\Csrf::verifyToken($csrfToken, true);
+
             if (!$email || !$password) {
                 return new JsonResponse([
                     'success' => false,
-                    'errors'  => ['email' => 'Email and password are required.'],
+                    'errors' => ['email' => 'Email and password are required.'],
                     'message' => 'Invalid login data.',
                     'redirect' => $next,
                 ], 422);
             }
 
             $user = $this->users->findByEmail($email);
-            error_log("findByEmail('$email') returned user ID: " . ($user ? $user->getId() : 'null'));
 
             if (!$user || !UserHelper::verifyPassword($password, $user->getPassword())) {
                 return new JsonResponse([
                     'success' => false,
-                    'errors'  => ['email' => 'Invalid email or password.'],
+                    'errors' => ['email' => 'Invalid email or password.'],
                     'message' => 'Login failed.',
                     'redirect' => $next,
                 ], 401);
             }
 
-            // Génère le token
-            $token = $this->users->loginUser($user);
+            // --- Auth complet : token + session + cookie ---
+            $token = AuthUser::login($user);
 
-            // Crée session + cookie
-            AuthUser::setSessionAndCookie($user, $token);
+            // Générer un nouveau CSRF token pour la session post-login (sécurité)
+            $newCsrf = \Ivi\Core\Security\Csrf::generateToken(true);
 
-            // Réponse finale avec succès
-            $response = [
-                'success'  => true,
-                'token'    => $token,
-                'user'     => [
-                    'id'       => $user->getId(),
-                    'email'    => (string)$user->getEmail(),
+            return new JsonResponse([
+                'success' => true,
+                'token' => $token,
+                'user' => [
+                    'id' => $user->getId(),
+                    'email' => $user->getEmail(),
                     'username' => $user->getUsername(),
-                    'roles'    => array_map(fn($r) => $r->getName(), $user->getRoles()),
+                    'roles' => $user->getRoleNames(),
                 ],
-                'message'  => 'Login successful.',
-                'errors'   => [],
+                'message' => 'Login successful.',
+                'errors' => [],
                 'redirect' => $next,
-            ];
-
-            return new JsonResponse($response, 200);
-        } catch (\Throwable $e) {
+                'csrf_token' => $newCsrf,
+            ], 200);
+        } catch (\RuntimeException $e) {
+            error_log("[Auth] CSRF verification failed: " . $e->getMessage());
             return new JsonResponse([
                 'success' => false,
-                'errors'  => ['exception' => $e->getMessage()],
-                'message' => 'Login error.',
+                'errors' => ['csrf' => 'Invalid CSRF token.'],
+                'message' => 'CSRF verification failed.',
+                'redirect' => $next,
+            ], 419);
+        } catch (\Throwable $e) {
+            error_log("[Auth] Login exception: " . $e->__toString());
+            return new JsonResponse([
+                'success' => false,
+                'errors' => ['exception' => $e->getMessage()],
+                'message' => 'Uh-oh! Something went wrong. [Auth]',
                 'redirect' => $next,
             ], 500);
         }
     }
+
 
     public function showSyncPage(): HtmlResponse
     {

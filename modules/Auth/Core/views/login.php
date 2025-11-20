@@ -19,7 +19,7 @@ $next = isset($_GET['next']) && trim($_GET['next']) !== '' ? trim($_GET['next'])
             <h2 class="sa-title">Sign in</h2>
             <form id="loginForm" method="post" class="sa-form">
                 <input type="hidden" name="next" value="<?= htmlspecialchars($next) ?>" id="nextParam">
-                <input type="hidden" name="csrf_token" value="<?= isset($_SESSION['csrf_token']) ? htmlspecialchars($_SESSION['csrf_token']) : ''; ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($__csrf_token ?? \Ivi\Core\Security\Csrf::generateToken(false)) ?>">
 
                 <!-- Email -->
                 <div class="sa-field">
@@ -70,36 +70,6 @@ $next = isset($_GET['next']) && trim($_GET['next']) !== '' ? trim($_GET['next'])
     </section>
 </div>
 
-<script>
-    // Password toggle
-    const togglePassword = document.getElementById('togglePassword');
-    const passwordInput = document.getElementById('password');
-    togglePassword?.addEventListener('click', () => {
-        const type = passwordInput.type === 'password' ? 'text' : 'password';
-        passwordInput.type = type;
-        togglePassword.querySelector('i').classList.toggle('fa-eye-slash');
-    });
-</script>
-
-
-<!-- Popups -->
-<div id="popupMessage" class="sa-popup" style="display:none;">
-    <button class="sa-popup__close">&times;</button>
-    <p id="popupText"></p>
-</div>
-<div id="success-popup" class="sa-flash sa-flash--success">
-    <button class="sa-popup__close">&times;</button>
-    <i class="fas fa-check-circle icon"></i>
-    <div class="message-content">
-        <p id="success-message"></p>
-    </div>
-</div>
-<div id="error-popup" class="sa-flash sa-flash--error">
-    <button class="sa-popup__close">&times;</button>
-    <div class="message-content">
-        <ul id="error-message" class="error-list"></ul>
-    </div>
-</div>
 <!-- Bottom-sheet popup pour showMessage -->
 <div id="shop-popup" class="shop-popup" style="display:none;">
     <div class="shop-popup-backdrop"></div>
