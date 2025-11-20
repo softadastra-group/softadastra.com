@@ -11,11 +11,8 @@ class HomeController extends Controller
 {
     public function index(): HtmlResponse
     {
-        // Titre de la page
-        // $title = cfg('user.title', 'Softadastra User');
-        // $this->setPageTitle($title);
-
-        $user = AuthMiddleware::handle();
+        $auth = new AuthUser();
+        $user = $auth->getUser();
 
         $userData = null;
         $message  = "Hello guest!";
@@ -29,7 +26,8 @@ class HomeController extends Controller
             ];
             $message = "Hello " . htmlspecialchars($user->getUsername()) . "!";
         } else {
-            // header('Location: /auth/login'); exit;
+            // header('Location: /auth/login');
+            // exit;
         }
 
         // 🔹 Assets

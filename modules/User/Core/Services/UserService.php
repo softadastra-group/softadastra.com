@@ -53,9 +53,9 @@ class UserService extends BaseService
         AuthUser::logout();
     }
 
-    public function register(string $fullname, string $email, string $password, string $phone): array
+    public function register(string $fullname, string $email, string $password): array
     {
-        return $this->registration->register($fullname, $email, $password, $phone);
+        return $this->registration->register($fullname, $email, $password);
     }
 
     /** Retourne l’utilisateur connecté ou null */

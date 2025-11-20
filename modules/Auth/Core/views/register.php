@@ -32,27 +32,6 @@ $next = isset($_GET['next']) ? trim($_GET['next']) : '';
                     <input type="text" class="sa-input" id="fullname" name="fullname" spellcheck="false" required>
                 </div>
 
-                <!-- Phone -->
-                <div class="sa-field" id="phone-wrapper">
-                    <label class="sa-label" for="phone">WhatsApp Number</label>
-                    <div class="softadastra-text-field phone-input-wrapper">
-                        <span id="flag-icon" class="flag-icon"></span>
-                        <input type="tel"
-                            id="phone"
-                            name="phone"
-                            inputmode="tel"
-                            autocomplete="tel"
-                            maxlength="16"
-                            placeholder="+256 7XXXXXXXX or +243 8XXXXXXXX"
-                            required>
-                        <div id="country-dropdown" class="country-dropdown">
-                            <div class="country-option" data-code="+256" data-flag="🇺🇬">🇺🇬 Uganda (+256)</div>
-                            <div class="country-option" data-code="+243" data-flag="🇨🇩">🇨🇩 DRC (+243)</div>
-                        </div>
-                        <div id="phone_error" class="error-messages"></div>
-                    </div>
-                </div>
-
                 <!-- Email -->
                 <div class="sa-field" id="email-group">
                     <label class="sa-label" for="email">Email</label>

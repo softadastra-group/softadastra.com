@@ -48,12 +48,6 @@ class UserValidator
             $errors['password'] = $err;
         }
 
-        // --- Phone ---
-        $phone = $user->getPhone();
-        if ($err = self::validatePhoneNumber($phone)) {
-            $errors['phone'] = $err;
-        }
-
         // --- Username ---
         $username = $user->getUsername();
         if ($username === null || trim($username) === '') {

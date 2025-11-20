@@ -98,14 +98,13 @@ class AuthController extends Controller
         $fullname = (string)($data['fullname'] ?? '');
         $email    = (string)($data['email'] ?? '');
         $password = (string)($data['password'] ?? '');
-        $phone    = (string)($data['phone'] ?? '');
 
-        $result = $this->users->register($fullname, $email, $password, $phone);
+        $result = $this->users->register($fullname, $email, $password);
 
-        // Si aucune erreur → status 201, sinon 422
+        // HTTP status
         $status = empty($result['errors']) ? 201 : 422;
 
-        // ⚠ Important : s'assurer que "errors" est toujours un array
+        // Toujours garantir array
         if (!isset($result['errors']) || $result['errors'] === null) {
             $result['errors'] = [];
         }

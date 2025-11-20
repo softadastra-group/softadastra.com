@@ -1,112 +1,6 @@
 document.addEventListener("DOMContentLoaded", function () {
-  const phoneInput = document.getElementById("phone");
-  const phoneError = document.getElementById("phone_error");
   const flagIcon = document.getElementById("flag-icon");
   const countryDropdown = document.getElementById("country-dropdown");
-  const phoneWrapper = document.getElementById("phone-wrapper");
-
-  // --- Helpers ---
-  const onlyDigits = (s) => (s || "").replace(/\D/g, "");
-  const trimSpaces = (s) => (s || "").replace(/\s+/g, "");
-
-  // Normalise vers E.164 (+2567xxxxxxxx ou +243xxxxxxxxx)
-  function normalizePhoneE164(raw) {
-    if (!raw) return "";
-
-    let v = raw.trim();
-
-    // Remplace espaces/traits
-    v = v.replace(/[^\d+]/g, "");
-
-    // Si déjà +256... ou +243... → nettoie
-    if (v.startsWith("+256")) {
-      const d = onlyDigits(v.slice(1)); // sans '+'
-      return "+256" + d.slice(3, 12); // garde 9 chiffres après 256
-    }
-    if (v.startsWith("+243")) {
-      const d = onlyDigits(v.slice(1));
-      return "+243" + d.slice(3, 12); // 9 chiffres après 243
-    }
-
-    // Uganda: 256..., 07..., 7...
-    if (v.startsWith("256")) {
-      const d = onlyDigits(v).slice(3);
-      return "+256" + d.slice(0, 9);
-    }
-    if (v.startsWith("07")) {
-      const d = onlyDigits(v).slice(1); // drop leading 0 → 7xxxxxxxx
-      return "+256" + d.slice(0, 9);
-    }
-    if (v.startsWith("7")) {
-      const d = onlyDigits(v);
-      return "+256" + d.slice(0, 9);
-    }
-
-    // DRC: 243..., 0[89]..., [89]...
-    if (v.startsWith("243")) {
-      const d = onlyDigits(v).slice(3);
-      return "+243" + d.slice(0, 9);
-    }
-    if (/^0[89]/.test(v)) {
-      const d = onlyDigits(v).slice(1); // drop leading 0
-      return "+243" + d.slice(0, 9);
-    }
-    if (/^[89]/.test(v)) {
-      const d = onlyDigits(v);
-      return "+243" + d.slice(0, 9);
-    }
-
-    // Par défaut: si 12 ou 13 chiffres avec indicatif deviné (rare) → garde 12 après indicatif
-    const d = onlyDigits(v);
-    if (d.length === 12 && d.startsWith("256")) return "+256" + d.slice(3);
-    if (d.length === 12 && d.startsWith("243")) return "+243" + d.slice(3);
-
-    return raw; // fallback: retourne tel quel (pour afficher l'erreur)
-  }
-
-  function isValidUG(msisdn) {
-    return /^\+2567\d{8}$/.test(msisdn); // Uganda: +256 7XXXXXXXX
-  }
-  function isValidCD(msisdn) {
-    return /^\+243\d{9}$/.test(msisdn); // DRC: +243 XXXXXXXXX (9 chiffres)
-  }
-
-  function updateFlag(msisdn) {
-    if (msisdn.startsWith("+256")) flagIcon.textContent = "🇺🇬";
-    else if (msisdn.startsWith("+243")) flagIcon.textContent = "🇨🇩";
-    else flagIcon.textContent = "";
-  }
-
-  // Affiche drapeau dynamiquement
-  phoneInput.addEventListener("input", function () {
-    const norm = normalizePhoneE164(phoneInput.value);
-    updateFlag(norm);
-  });
-
-  // Dropdown pays
-  phoneInput.addEventListener("focus", function () {
-    countryDropdown.style.display = "block";
-  });
-
-  document.addEventListener("click", function (e) {
-    if (!phoneWrapper.contains(e.target)) {
-      countryDropdown.style.display = "none";
-    }
-  });
-
-  document.querySelectorAll(".country-option").forEach((option) => {
-    option.addEventListener("click", function (e) {
-      e.stopPropagation();
-      const code = this.dataset.code;
-      const flag = this.dataset.flag;
-      phoneInput.value = code + " ";
-      flagIcon.textContent = flag;
-      countryDropdown.style.display = "none";
-      phoneError.textContent = "";
-      phoneInput.classList.remove("input-error");
-    });
-  });
-
   /* === Example usage:
 showMessage("loading", { module: "Register", text: "Processing..." });
 showMessage("error",   { module: "Register", text: "Password too short." });
@@ -121,48 +15,18 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
 
       const $submitBtn = $("#registerForm button[type='submit']");
       let $spinner = $submitBtn.find(".btn-spinner");
+
       if (!$spinner.length) {
         $spinner = $(
           "<span class='btn-spinner' style='display:none'></span>"
         ).appendTo($submitBtn);
       }
+
       const $btnText = $submitBtn.find(".btn-text");
 
-      const emailGroup = document.getElementById("email-group");
-
-      // Normalise avant d'envoyer
-      const raw = phoneInput.value;
-      const e164 = normalizePhoneE164(raw);
-      phoneInput.value = e164; // on poste la version normalisée
-      updateFlag(e164);
-
-      // ✅ ANALYTICS: tentative d'inscription (avant validation)
+      // ANALYTICS – tentative d’inscription (email+password)
       if (window.SA && typeof SA.event === "function") {
-        SA.event("auth_register_submit", { method: "email+password+phone" });
-      }
-
-      const valid = isValidUG(e164) || isValidCD(e164);
-      if (!valid) {
-        phoneError.textContent =
-          "Enter a valid number: +256 7XXXXXXXX (Uganda) or +243 XXXXXXXXX (DRC)";
-        phoneInput.classList.add("input-error");
-        emailGroup.style.marginTop = "50px";
-        $submitBtn.prop("disabled", false);
-        $spinner.hide();
-        $btnText.show();
-
-        // ✅ ANALYTICS: erreur de validation côté client (téléphone)
-        if (window.SA && typeof SA.event === "function") {
-          SA.event("auth_register_error", {
-            method: "email+password+phone",
-            reason: "invalid_phone",
-          });
-        }
-        return;
-      } else {
-        phoneError.textContent = "";
-        phoneInput.classList.remove("input-error");
-        emailGroup.style.marginTop = "";
+        SA.event("auth_register_submit", { method: "email+password" });
       }
 
       $submitBtn.prop("disabled", true);
@@ -182,7 +46,7 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
           $btnText.show();
           $submitBtn.prop("disabled", false);
 
-          // ✅ Seul le 201 ou l'absence d'erreurs signifie succès
+          // Succès → HTTP 201 et aucune erreur
           if (
             jqXHR.status === 201 &&
             Array.isArray(data.errors) &&
@@ -190,30 +54,31 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
           ) {
             if (window.SA && typeof SA.event === "function") {
               SA.event("auth_register_success", {
-                method: "email+password+phone",
+                method: "email+password",
               });
             }
 
             localStorage.setItem("justRegistered", "true");
             const to = data?.redirect || "/auth/sync";
+
             showMessage("success", {
               text:
                 data?.message || "Your account has been created successfully.",
               onSuccess: () => {
-                window.location.href = to; // ← redirection commentée
+                window.location.href = to;
                 console.log("Registration succeeded, redirection skipped.");
               },
             });
             return;
           }
 
-          // Sinon, ce sont des erreurs métiers → affiche en erreur
+          // Sinon → erreurs
           const errs = data.errors || readErrors(data);
           showFieldErrors(errs);
 
           if (window.SA && typeof SA.event === "function") {
             SA.event("auth_register_error", {
-              method: "email+password+phone",
+              method: "email+password",
               reason: "validation",
               fields: errs ? Object.keys(errs) : null,
             });
@@ -223,6 +88,7 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
             errs,
             data.message || "Please fix the highlighted fields."
           );
+
           showMessage("error", {
             text: friendly,
             autoCloseMs: 0,
@@ -248,7 +114,7 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
 
           if (window.SA && typeof SA.event === "function") {
             SA.event("auth_register_error", {
-              method: "email+password+phone",
+              method: "email+password",
               reason: "http_error",
               status: xhr.status || null,
             });
@@ -258,6 +124,7 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
             errs,
             payload.message || "Server error."
           );
+
           showMessage("error", {
             text: friendly,
             autoCloseMs: 0,
@@ -267,13 +134,12 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
         },
       });
 
-      /* ============== Helpers “UX friendly” (inchangés) ============== */
+      /* ============== Helpers (restent inchangés) ============== */
 
       const FIELD_MAP = {
         fullname: "#fullname",
         email: "#email",
         password: "#password",
-        phone_number: "#phone_number",
       };
 
       function readTitle(payload) {
@@ -294,8 +160,6 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
             return "Email address";
           case "password":
             return "Password";
-          case "phone_number":
-            return "WhatsApp number";
           default:
             return (key || "")
               .replace(/_/g, " ")
@@ -329,11 +193,14 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
 
       function showFieldErrors(errs) {
         let first = null;
+
         Object.values(FIELD_MAP).forEach((sel) => {
           const el = document.querySelector(sel);
           if (el) el.classList.remove("input-error");
         });
+
         if (!errs || typeof errs !== "object") return;
+
         for (const key in errs) {
           const sel = FIELD_MAP[key];
           const el = sel ? document.querySelector(sel) : null;
@@ -342,7 +209,10 @@ showMessage("success", { text: "Account created!", onSuccess: () => location.hre
             if (!first) first = el;
           }
         }
-        if (first && typeof first.focus === "function") first.focus();
+
+        if (first && typeof first.focus === "function") {
+          first.focus();
+        }
       }
     });
   });
