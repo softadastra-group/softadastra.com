@@ -159,8 +159,12 @@ abstract class Controller
             return new HtmlResponse($content, $status);
         }
 
-        // Capture du layout complet
-        $full = $this->capture(function () use ($layoutPath, $content, $params) {
+        // Générer / s'assurer du token CSRF pour le layout (disponible dans la vue)
+        // Ne force pas la régénération ici (false) pour ne pas invalider inutilement les tokens.
+        $__csrf_token = \Ivi\Core\Security\Csrf::generateToken(false);
+
+        // Capture du layout complet — on passe $__csrf_token dans la closure via use
+        $full = $this->capture(function () use ($layoutPath, $content, $params, $__csrf_token) {
             // Injecte les variables de layout et les params
             $title = self::$layoutVars['title'] ?? ($params['title'] ?? 'Softadastra');
 
@@ -170,13 +174,12 @@ abstract class Controller
             // Flag SPA pour le JS global (spa.js)
             echo '<script>window.__SPA__ = true;</script>';
 
+            // La vue/layout peut maintenant accéder à $__csrf_token en toute sécurité
             require $layoutPath;
         });
 
         return new HtmlResponse($full, $status);
     }
-
-
 
     /**
      * Shortcut for rendering a view using the default layout.

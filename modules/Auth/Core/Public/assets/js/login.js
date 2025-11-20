@@ -30,60 +30,7 @@ function buildAuthHeaders() {
   if (!t || jwtIsExpired(t)) return {};
   return { Authorization: `Bearer ${t}` };
 }
-// fetch avec cookies + Authorization valide (si dispo)
-async function saAuthFetch(url, opts = {}) {
-  const res = await fetch(url, {
-    credentials: "include",
-    ...opts,
-    headers: { ...(opts.headers || {}), ...buildAuthHeaders() },
-  });
-  return res;
-}
 
-// ======= 1) Google OAuth (client) =======
-async function handleGoogleLoginClick(event) {
-  event.preventDefault();
-
-  // next sûr et relatif à ton origine
-  const rawNext = location.href;
-  const nextParam = encodeURIComponent(rawNext);
-
-  // Sauvegarde client (fallback post-OAuth)
-  try {
-    sessionStorage.setItem(
-      "sa_post_login",
-      JSON.stringify({
-        next: rawNext,
-        scrollY: window.scrollY || 0,
-        ts: Date.now(),
-        action: "login",
-      })
-    );
-  } catch {}
-
-  // Récupère l’URL OAuth côté serveur (avec cookies + token si valide)
-  try {
-    const r = await saAuthFetch("/google-login-url");
-    const data = await r.json().catch(() => ({}));
-
-    if (data && data.url) {
-      const finalUrl =
-        data.url +
-        (data.url.includes("?") ? "&" : "?") +
-        "next=" +
-        nextParam +
-        "&no_pwa_redirect=1";
-
-      const isPWA = window.matchMedia("(display-mode: standalone)").matches;
-      if (isPWA) window.open(finalUrl, "_blank");
-      else window.location.href = finalUrl;
-    } else {
-      alert("Oops! We couldn’t get the Google sign-in link.");
-    }
-  } catch {
-    alert("Oops! There was a problem communicating with the server.");
-  }
-}
 /* =========================================================
    Softadastra — Login + Flash via showMessage / closePopup
    Dépendances :
@@ -91,290 +38,269 @@ async function handleGoogleLoginClick(event) {
    - fonctions showMessage(type, options) et closePopup()
    ========================================================= */
 
-$(async function () {
-  /* ---------- 1) Flash messages init (via API) ---------- */
-  try {
-    const resp = await saAuthFetch("/api/get-flash");
-    const json = await resp.json().catch(() => ({}));
-    const messages =
-      json && json.messages ? json.messages : { success: [], error: [] };
+// Bloc d'initialisation du formulaire de login (version SPA-friendly)
+// ======= Softadastra — Login SPA + Flash =======
+(function () {
+  "use strict";
 
-    (messages.success || []).forEach((m) => {
-      showMessage("success", {
-        text: typeof m === "string" ? m : String(m),
-        module: "Flash",
-        autoCloseMs: 3000,
-        closeOnBackdrop: true,
-        closeOnSwipe: true,
-      });
-    });
+  const AUTH_MODE = window.SA_AUTH_MODE || "token"; // "cookie" | "token"
+  const TOKEN_KEY = window.SA_TOKEN_KEY || "sa_token"; // ex: "shop_token"
 
-    (messages.error || []).forEach((err) => {
-      const text =
-        typeof err === "string"
-          ? err
-          : err && typeof err === "object"
-          ? Object.values(err).join(" • ")
-          : "Unexpected error";
-      showMessage("error", {
-        text,
-        module: "Flash",
-        autoCloseMs: 0,
-        closeOnBackdrop: true,
-        closeOnSwipe: true,
-      });
-    });
-  } catch {
-    // silencieux: flash facultatif
-  }
-
-  /* ---------- 2) Login form (tentatives, blocage, redirect) ---------- */
-  const $submitBtn = $("#custom-login-login");
-
-  function setSubmitting(isSubmitting) {
-    if (isSubmitting) {
-      $submitBtn
-        .addClass("is-loading")
-        .attr({ disabled: true, "aria-busy": "true" });
-      // Modal loading
-      showMessage("loading", {
-        text: "Signing you in…",
-        module: "Auth",
-        autoCloseMs: 0,
-        closeOnBackdrop: false,
-        closeOnSwipe: false,
-        lockScroll: false,
-        showBackdrop: false,
-      });
-    } else {
-      $submitBtn
-        .removeClass("is-loading")
-        .attr({ disabled: false, "aria-busy": "false" });
-      // On ne ferme pas forcément ici : chaque branche gère closePopup()
-    }
-  }
-
-  // état par défaut
-  setSubmitting(false);
-
-  let failedAttempts =
-    parseInt(localStorage.getItem("loginFailedAttempts") || "0", 10) || 0;
-  const MAX_ATTEMPTS = 5;
-  const BLOCK_DURATION = 10 * 60 * 1000; // 10 min
-
-  const lastFailedTime =
-    parseInt(localStorage.getItem("lastFailedTime") || "0", 10) || 0;
-  if (
-    failedAttempts >= MAX_ATTEMPTS &&
-    Date.now() - lastFailedTime < BLOCK_DURATION
-  ) {
-    const remainingMinutes = Math.ceil(
-      (BLOCK_DURATION - (Date.now() - lastFailedTime)) / 60000
-    );
-    showBlockedStatus(remainingMinutes);
-    return;
-  }
-  updateButtonAppearance();
-
-  // garde-fou double-submit
-  let submitting = false;
-
-  // Empêche submit natif sur Entrée et déclenche le bouton
-  $("#loginForm").on("keydown", "input", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault(); // stop submit natif
-      $("#custom-login-login").click(); // déclenche ton bouton JS
-    }
-  });
-
-  // Submit AJAX standard
-  $("#loginForm").on("submit", async function (event) {
-    event.preventDefault();
-    if (submitting) return;
-    submitting = true;
-    setSubmitting(true);
-
-    // ✅ Récupère next directement depuis le formulaire
-    let rawNext = $("#nextParam").val() || "/";
+  function getToken() {
     try {
-      const u = new URL(rawNext, location.origin);
-      rawNext = u.origin === location.origin ? u.pathname + u.search : "/";
+      return localStorage.getItem(TOKEN_KEY) || null;
     } catch {
-      rawNext = "/";
+      return null;
     }
-    const nextRelative = rawNext;
+  }
 
-    // fetch AJAX
+  function setToken(t) {
     try {
-      const resp = await saAuthFetch("/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        },
-        body: $(this).serialize(),
-      });
+      t
+        ? localStorage.setItem(TOKEN_KEY, t)
+        : localStorage.removeItem(TOKEN_KEY);
+    } catch {}
+  }
 
-      if (resp.ok) {
-        const data = await resp.json().catch(() => ({}));
+  function jwtIsExpired(token) {
+    try {
+      const [_, payload] = token.split(".");
+      const p = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+      return (
+        typeof p.exp !== "number" || Math.floor(Date.now() / 1000) >= p.exp
+      );
+    } catch {
+      return true;
+    }
+  }
 
-        if (data && data.success) {
-          if (data.token) setToken(data.token);
+  // ======= SA Auth Fetch consolidé =======
+  async function saAuthFetch(url, opts = {}) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
 
-          // Analytics succès
-          if (window.SA && typeof SA.event === "function") {
-            SA.event("auth_login_success", { method: "email_password" });
-          }
+    // CSRF depuis meta ou input
+    const csrfMeta = document
+      .querySelector('meta[name="csrf-token"]')
+      ?.getAttribute("content");
+    const csrfInput = document.querySelector('input[name="csrf_token"]')?.value;
+    if (csrfInput) opts.headers["X-CSRF-TOKEN"] = csrfInput;
+    else if (csrfMeta) opts.headers["X-CSRF-TOKEN"] = csrfMeta;
 
-          // Détermine la redirection
-          let redirect = data.redirect;
-          if (!redirect) {
-            let after = null;
-            try {
-              after = JSON.parse(
-                sessionStorage.getItem("sa_post_login") || "null"
-              );
-            } catch {}
-            redirect = nextRelative || after?.next || document.referrer || "/";
-            if (!redirect.includes("#")) redirect += "#__sa_after_login";
-          }
+    // Token Authorization si mode "token"
+    if (AUTH_MODE === "token") {
+      const t = getToken();
+      if (t && !jwtIsExpired(t)) opts.headers["Authorization"] = `Bearer ${t}`;
+    }
 
-          // reset état local
-          localStorage.removeItem("loginFailedAttempts");
-          localStorage.removeItem("lastFailedTime");
-          localStorage.removeItem("flash_closed");
+    // cookies
+    if (!opts.credentials) opts.credentials = "include";
 
-          // modal success
-          closePopup();
-          showMessage("success", {
-            text: data.message || "Welcome!",
-            module: "Auth",
-            autoCloseMs: 1200,
-            closeOnBackdrop: true,
-            closeOnSwipe: true,
-          });
+    return fetch(url, opts);
+  }
 
-          setTimeout(() => {
-            try {
-              sessionStorage.removeItem("sa_post_login");
-            } catch {}
-            location.assign(redirect);
-          }, 700);
+  // ======= Initialisation login form =======
+  async function initLoginForm() {
+    try {
+      const $loginForm = $("#loginForm");
+      if (!$loginForm.length) return;
 
-          return;
-        }
-
-        // Réponse non success
-        if (window.SA && typeof SA.event === "function") {
-          SA.event("auth_login_error", {
-            method: "email_password",
-            reason: data?.error || "unexpected_response",
-          });
-        }
-
-        closePopup();
-        showErrorMessage(data?.error || "Unexpected response.");
-      } else {
-        // HTTP non OK
-        let data = null;
-        try {
-          data = await resp.json();
-        } catch {}
-
-        if (data && data.blocked) {
-          failedAttempts = MAX_ATTEMPTS;
-          localStorage.setItem("loginFailedAttempts", String(failedAttempts));
-          localStorage.setItem("lastFailedTime", String(Date.now()));
-          if (window.SA && typeof SA.event === "function") {
-            SA.event("auth_login_error", {
-              method: "email_password",
-              reason: "blocked",
-            });
-          }
-          closePopup();
-          showBlockedStatus(data.remaining || 10);
-        } else {
-          if (window.SA && typeof SA.event === "function") {
-            SA.event("auth_login_error", {
-              method: "email_password",
-              reason: (data && data.error) || "http_error",
-            });
-          }
-          closePopup();
-          showErrorMessage(
-            (data && data.error) ?? "An error occurred while sending the data."
+      // inject CSRF hidden si absent
+      if ($loginForm.find('input[name="csrf_token"]').length === 0) {
+        const meta = document
+          .querySelector('meta[name="csrf-token"]')
+          ?.getAttribute("content");
+        if (meta)
+          $loginForm.append(
+            `<input type="hidden" name="csrf_token" value="${meta}">`
           );
+      }
+
+      const $submitBtn = $("#custom-login-login");
+
+      function setSubmitting(isSubmitting) {
+        if (isSubmitting) {
+          $submitBtn
+            .addClass("is-loading")
+            .attr({ disabled: true, "aria-busy": "true" });
+          showMessage("loading", {
+            text: "Signing you in…",
+            module: "Auth",
+            autoCloseMs: 0,
+          });
+        } else {
+          $submitBtn
+            .removeClass("is-loading")
+            .attr({ disabled: false, "aria-busy": "false" });
         }
       }
-    } catch {
-      if (window.SA && typeof SA.event === "function") {
-        SA.event("auth_login_error", {
-          method: "email_password",
-          reason: "network_error",
-        });
-      }
-      closePopup();
-      showErrorMessage("Network error.");
-    } finally {
-      submitting = false;
-      setSubmitting(false);
-      updateButtonAppearance();
-    }
-  });
 
-  function updateButtonAppearance() {
-    const $btn = $("#custom-login-login");
-    if (failedAttempts >= 3) {
-      $btn
-        .css({
+      setSubmitting(false);
+
+      // Detach old handlers pour éviter doublons
+      $loginForm.off("keydown", "input");
+      $loginForm.off("submit");
+
+      let failedAttempts =
+        parseInt(localStorage.getItem("loginFailedAttempts") || "0", 10) || 0;
+      const MAX_ATTEMPTS = 5;
+      const BLOCK_DURATION = 10 * 60 * 1000; // 10 minutes
+      const lastFailedTime =
+        parseInt(localStorage.getItem("lastFailedTime") || "0", 10) || 0;
+
+      if (
+        failedAttempts >= MAX_ATTEMPTS &&
+        Date.now() - lastFailedTime < BLOCK_DURATION
+      ) {
+        const remainingMinutes = Math.ceil(
+          (BLOCK_DURATION - (Date.now() - lastFailedTime)) / 60000
+        );
+        showBlockedStatus(remainingMinutes);
+        return;
+      }
+      updateButtonAppearance();
+
+      let submitting = false;
+
+      // Entrée déclenche submit
+      $loginForm.on("keydown", "input", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          $submitBtn.click();
+        }
+      });
+
+      // Submit SPA
+      $loginForm.on("submit", async function (event) {
+        event.preventDefault();
+        if (submitting) return;
+        submitting = true;
+        setSubmitting(true);
+
+        // Next param
+        let rawNext = $("#nextParam").val() || "/";
+        try {
+          const u = new URL(rawNext, location.origin);
+          rawNext = u.origin === location.origin ? u.pathname + u.search : "/";
+        } catch {
+          rawNext = "/";
+        }
+        const nextRelative = rawNext;
+
+        // Debug form
+        console.debug("[SPA][auth] form body:", $(this).serialize());
+
+        try {
+          const resp = await saAuthFetch("/auth/login", {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/x-www-form-urlencoded; charset=UTF-8",
+            },
+            body: $(this).serialize(),
+          });
+
+          let data = {};
+          try {
+            data = await resp.json();
+          } catch {}
+
+          if (resp.ok && data.success) {
+            if (data.token) setToken(data.token);
+            closePopup();
+            showMessage("success", {
+              text: data.message || "Welcome!",
+              module: "Auth",
+              autoCloseMs: 1200,
+            });
+            localStorage.removeItem("loginFailedAttempts");
+            localStorage.removeItem("lastFailedTime");
+            localStorage.removeItem("flash_closed");
+
+            // Redirection
+            let redirect =
+              data.redirect || nextRelative || document.referrer || "/";
+            if (!redirect.includes("#")) redirect += "#__sa_after_login";
+            setTimeout(() => location.assign(redirect), 700);
+            return;
+          }
+
+          // Gestion erreurs backend
+          if (data.blocked) {
+            failedAttempts = MAX_ATTEMPTS;
+            localStorage.setItem("loginFailedAttempts", String(failedAttempts));
+            localStorage.setItem("lastFailedTime", String(Date.now()));
+            showBlockedStatus(data.remaining || 10);
+          } else showErrorMessage(data);
+        } catch (err) {
+          closePopup();
+          showErrorMessage({ message: "Network error." });
+        } finally {
+          submitting = false;
+          setSubmitting(false);
+          updateButtonAppearance();
+        }
+      });
+
+      // ---- helpers ----
+      function updateButtonAppearance() {
+        const $btn = $submitBtn;
+        if (failedAttempts >= 3) {
+          $btn.css({
+            "background-color": "#dc3545",
+            "border-color": "#dc3545",
+            color: "#fff",
+          });
+        } else {
+          $btn.css({ "background-color": "", "border-color": "", color: "" });
+        }
+      }
+
+      function showBlockedStatus(minutes) {
+        $submitBtn.prop("disabled", true).text(`Blocked (${minutes}m)`).css({
           "background-color": "#dc3545",
           "border-color": "#dc3545",
           color: "#fff",
-        })
-        .off("mouseenter mouseleave")
-        .on("mouseenter", function () {
-          $(this).css("opacity", ".8");
-        })
-        .on("mouseleave", function () {
-          $(this).css("opacity", "1");
         });
-    } else {
-      $btn
-        .css({ "background-color": "", "border-color": "", color: "" })
-        .off("mouseenter mouseleave");
+        showMessage("error", {
+          text: `Too many attempts. Try again in ${minutes} minute(s).`,
+          module: "Auth",
+          autoCloseMs: 0,
+        });
+      }
+
+      function showErrorMessage(data) {
+        let text = "An unexpected error occurred.";
+        if (!data) text = "No response from server.";
+        else if (typeof data === "string") text = data;
+        else if (data.errors)
+          text = Object.values(data.errors).flat().join(" • ");
+        else if (data.message) text = data.message;
+        showMessage("error", { text, module: "Auth", autoCloseMs: 0 });
+      }
+      // ---- fin helpers ----
+    } catch (err) {
+      console.debug("initLoginForm error", err);
     }
   }
 
-  function showBlockedStatus(minutes) {
-    const $btn = $("#custom-login-login");
-    $btn.prop("disabled", true).text(`Blocked (${minutes}m)`).css({
-      "background-color": "#dc3545",
-      "border-color": "#dc3545",
-      color: "#fff",
-    });
+  // Expose global pour SPA et appel manuel
+  window.pageInit = initLoginForm;
 
-    showMessage("error", {
-      text: `Too many attempts. Please try again in ${minutes} minute(s).`,
-      module: "Auth",
-      autoCloseMs: 0,
-      closeOnBackdrop: true,
-      closeOnSwipe: true,
-    });
-  }
+  // DOMContentLoaded
+  document.addEventListener("DOMContentLoaded", () => {
+    initLoginForm().catch(() => {});
+  });
 
-  function showErrorMessage(error) {
-    const text =
-      typeof error === "object"
-        ? Object.values(error).join(" • ")
-        : error || "Error";
-    showMessage("error", {
-      text,
-      module: "Auth",
-      autoCloseMs: 0,
-      closeOnBackdrop: true,
-      closeOnSwipe: true,
-    });
-  }
-});
+  // Après injection SPA
+  document.addEventListener("spa:fragment:loaded", () => {
+    initLoginForm().catch(() => {});
+  });
+
+  // Appel immédiat si jQuery déjà prêt
+  if (window.jQuery && document.readyState === "complete")
+    initLoginForm().catch(() => {});
+})();
 
 // ======= 4) Divers =======
 function goBack() {

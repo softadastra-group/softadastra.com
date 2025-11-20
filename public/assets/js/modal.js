@@ -56,6 +56,11 @@ function unlockBodyScroll() {
 
 function showMessage(type, options = {}) {
   const popup = ensurePopupDom();
+  popup.classList.add("show"); // active la flex + pointer-events
+  requestAnimationFrame(() => {
+    popup.querySelector(".shop-popup-sheet").style.transform = ""; // recalcul
+  });
+
   const icon = document.getElementById("popup-icon");
   const title = document.getElementById("popup-title");
   const msg = document.getElementById("popup-text");
@@ -180,7 +185,10 @@ function showMessage(type, options = {}) {
   // (1) Backdrop: close only if click target IS the backdrop (not inside sheet)
   if (allowBackdrop) {
     popup._containerClickHandler = function (e) {
-      if (e.target === backdrop) closePopup();
+      const sheet = popup.querySelector(".shop-popup-sheet");
+      if (!sheet.contains(e.target)) {
+        closePopup();
+      }
     };
     popup.addEventListener("click", popup._containerClickHandler, true);
   }
@@ -271,22 +279,26 @@ function showMessage(type, options = {}) {
 function closePopup() {
   const popup = document.getElementById("shop-popup");
   if (!popup) return;
+  popup.classList.remove("show");
 
-  // Clear any running timer
   window.clearTimeout(popup._hideTimer);
   popup._hideTimer = null;
 
-  // Hide
+  // Reset transform pour sheet
+  const sheet = popup.querySelector(".shop-popup-sheet");
+  if (sheet) {
+    sheet.style.transition = "transform 0.3s ease";
+    sheet.style.transform = "translateY(0)";
+  }
+
   popup.style.display = "none";
   unlockBodyScroll();
 
-  // Unblur main content
   const mainContent =
     document.getElementById("shop-panel") ||
     document.querySelector(".sa-card__body");
   if (mainContent) mainContent.classList.remove("blur-background");
 
-  // Run success callback if any
   if (typeof shopMessageCallback === "function") {
     const fn = shopMessageCallback;
     shopMessageCallback = null;

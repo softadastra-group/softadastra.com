@@ -10,7 +10,7 @@
 
     <!-- Favicon -->
     <link rel="icon" href="<?= $favicon ?? asset('assets/favicon/favicon.png') ?>">
-
+    <meta name="csrf-token" content="<?= htmlspecialchars($__csrf_token) ?>">
     <!-- Bootstrap CSS -->
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"

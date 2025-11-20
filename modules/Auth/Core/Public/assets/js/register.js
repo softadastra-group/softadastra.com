@@ -8,10 +8,26 @@ showMessage("error",   { module: "Register", text: "Password too short." });
 showMessage("success", { text: "Account created!", onSuccess: () => location.href = "/auth/sync" });
 */
 
+  function updateCsrfToken() {
+    const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+    if (!tokenMeta) return;
+
+    const token = tokenMeta.getAttribute("content");
+    if (!token) return;
+
+    // mettre à jour tous les champs CSRF dans les formulaires SPA
+    document.querySelectorAll('input[name="csrf_token"]').forEach((input) => {
+      input.value = token;
+    });
+  }
+
   // --- Form submit (jQuery) ---
   $(function () {
     $("#registerForm").on("submit", function (event) {
       event.preventDefault();
+
+      // ✅ mettre à jour CSRF avant envoi
+      updateCsrfToken();
 
       const $submitBtn = $("#registerForm button[type='submit']");
       let $spinner = $submitBtn.find(".btn-spinner");
