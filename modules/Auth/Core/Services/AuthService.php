@@ -164,19 +164,23 @@ class AuthService extends BaseService
             if (!$email) {
                 FlashMessage::add('error', 'Google did not return a valid email.');
                 RedirectResponse::to('/login')->send();
-                return;
+                return; // OK : return simple (void)
             }
 
             $existingUser = $this->repository->findByEmail($email);
             if ($existingUser) {
                 $this->issueAuthForUser($existingUser);
-                FlashMessage::add('success', 'Welcome back, ' . ($existingUser->getUsername() ?: $existingUser->getFullname()) . '!');
+                FlashMessage::add(
+                    'success',
+                    'Welcome back, ' . ($existingUser->getUsername() ?: $existingUser->getFullname()) . '!'
+                );
+
                 $next = $this->safeNextFromRequest('/');
                 RedirectResponse::to($this->withAfterLoginHash($next))->send();
-                return;
+                return; // OK
             }
 
-            // 1️⃣ Créer l'entité User
+            // ---- NOUVEL UTILISATEUR ----
             $userData = [
                 'fullname'      => $googleUser->name ?? '',
                 'email'         => $email,
@@ -190,22 +194,31 @@ class AuthService extends BaseService
 
             $userEntity = UserFactory::createFromArray($userData);
 
-            // 2️⃣ Persister avec les rôles
-            $savedUser = $this->repository->createWithRoles($userEntity, $userEntity->getRoles());
+            // Persist
+            $savedUser = $this->repository->createWithRoles(
+                $userEntity,
+                $userEntity->getRoles()
+            );
 
-            // 3️⃣ Auth + JWT
+            // Auth
             $this->issueAuthForUser($savedUser);
 
-            // 4️⃣ Message flash succès
-            FlashMessage::add('success', 'Welcome, ' . ($savedUser->getUsername() ?: $savedUser->getFullname()) . '!');
+            FlashMessage::add(
+                'success',
+                'Welcome, ' . ($savedUser->getUsername() ?: $savedUser->getFullname()) . '!'
+            );
 
-            // 5️⃣ Redirection
             $next = $this->safeNextFromRequest('/finalize-registration');
+
             RedirectResponse::to($this->withAfterLoginHash($next))->send();
+            return; // OK
+
         } catch (\Throwable $e) {
             error_log('Google OAuth login error: ' . $e->getMessage());
             FlashMessage::add('error', 'An error occurred during Google login.');
+
             RedirectResponse::to('/login')->send();
+            return; // OK
         }
     }
 

@@ -8,6 +8,8 @@ use App\Controllers\Controller;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\HtmlResponse;
 use Ivi\Core\Services\GoogleService;
+use Ivi\Core\Utils\FlashMessage;
+use Ivi\Http\RedirectResponse;
 use Modules\User\Core\Services\UserService;
 use Ivi\Http\Request;
 use Modules\Auth\Core\Helpers\AuthUser;
@@ -34,19 +36,6 @@ class AuthController extends Controller
         $this->users = make(UserService::class);
     }
 
-    // Logout
-    public function logout(): JsonResponse
-    {
-        // Supprime session + cookie
-        AuthUser::logout();
-
-        // Retourne un JSON pour que le frontend SPA puisse réagir
-        return new JsonResponse([
-            'success' => true,
-            'message' => 'Logged out successfully.'
-        ]);
-    }
-
     // ---------------------------------------------------
     // GET PAGES
     // ---------------------------------------------------
@@ -59,6 +48,56 @@ class AuthController extends Controller
             'title'     => 'Auth Home',
             'styles'    => $styles,
             'googleUrl' => $this->google->loginUrl(),
+        ]);
+    }
+
+    /**
+     * Handle Google OAuth callback
+     */
+    /**
+     * Handle Google OAuth callback
+     */
+    public function handleGoogleCallback(Request $request)
+    {
+        try {
+            // 1️⃣ Récupérer le code renvoyé par Google
+            $code = $request->get('code');
+            if (!$code) {
+                FlashMessage::add('error', "Google login failed: missing authorization code.");
+                RedirectResponse::to('/auth/login')->send();
+                return;
+            }
+
+            // 2️⃣ Récupérer le profil Google
+            $googleUser = $this->google->fetchUser($code);
+            if (!$googleUser || empty($googleUser->email)) {
+                FlashMessage::add('error', "Google login failed: unable to fetch Google account.");
+                RedirectResponse::to('/auth/login')->send();
+                return;
+            }
+
+            // 3️⃣ Appeler le service → il gère TOUT (login, création, flash, redirect)
+            $this->users->loginWithGoogleOAuth($googleUser);
+
+            // 4️⃣ NE RIEN FAIRE APRÈS → la fonction du service a déjà fait la redirection
+            return;
+        } catch (\Throwable $e) {
+            error_log("[Google OAuth] Exception: " . $e->getMessage());
+            FlashMessage::add('error', "Unexpected error during Google login.");
+            RedirectResponse::to('/auth/login')->send();
+        }
+    }
+
+    // Logout
+    public function logout(): JsonResponse
+    {
+        // Supprime session + cookie
+        AuthUser::logout();
+
+        // Retourne un JSON pour que le frontend SPA puisse réagir
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Logged out successfully.'
         ]);
     }
 

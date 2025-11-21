@@ -11,17 +11,23 @@ use Modules\User\Core\Repositories\UserRepository;
 use Ivi\Http\JsonResponse;
 use Ivi\Http\RedirectResponse;
 use Modules\Auth\Core\Helpers\AuthUser;
+use Modules\Auth\Core\Services\AuthService;
 use Modules\User\Core\Validator\UserValidator;
 use Modules\User\Core\ValueObjects\Email;
 
 class UserService extends BaseService
 {
     private UserRegistrationService $registration;
+    private AuthService $authService;
 
-    public function __construct(UserRegistrationService $registration, UserRepository $repository)
-    {
+    public function __construct(
+        UserRegistrationService $registration,
+        UserRepository $repository,
+        AuthService $authService
+    ) {
         parent::__construct($repository);
         $this->registration = $registration;
+        $this->authService = $authService;
     }
 
     public function setJsonResponseHandler(callable $handler): void
@@ -45,6 +51,12 @@ class UserService extends BaseService
         error_log("loginUser() called for user ID: " . $user->getId() . " | email: " . $user->getEmail());
         // Génère seulement le token
         return AuthUser::generateToken($user);
+    }
+
+    public function loginWithGoogleOAuth(object $googleUser): void
+    {
+        // déléguer entièrement
+        $this->authService->loginWithGoogleOAuth($googleUser);
     }
 
     /** Logout */
