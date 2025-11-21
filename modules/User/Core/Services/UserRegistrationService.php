@@ -185,7 +185,6 @@ class UserRegistrationService extends BaseService
         }
     }
 
-
     public function finalizeRegistration(array $post): void
     {
         try {

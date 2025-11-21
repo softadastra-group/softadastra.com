@@ -56,7 +56,6 @@ final class UserServiceTest extends TestCase
         $fullname = 'Gaspard Kirira';
         $email = 'gaspard@example.com';
         $password = 'StrongPass123!';
-        $phone = '+256712345678';
 
         // --- 1) Email disponible
         $this->repositoryMock
@@ -65,7 +64,7 @@ final class UserServiceTest extends TestCase
             ->with($email)
             ->willReturn(null);
 
-        // --- 2) Save simulateur + ID utilisateur et rôles
+        // --- 2) Mock save() + id assignation
         $this->repositoryMock
             ->expects($this->once())
             ->method('save')
@@ -92,7 +91,7 @@ final class UserServiceTest extends TestCase
             ->getMock();
         $validatorMock->method('validate')->willReturn([]);
 
-        // --- 4) Classe de test anonyme pour surcharger issueAuthForUser
+        // --- 4) override issueAuthForUser()
         $testService = new class($this->repositoryMock, $this->authMock) extends UserRegistrationService {
             public function issueAuthForUser(User $user): string
             {
@@ -103,13 +102,13 @@ final class UserServiceTest extends TestCase
         $testService->setValidator($validatorMock);
         $testService->setJsonResponseHandler(fn(?JsonResponse $resp) => $GLOBALS['testResponse'] = $resp);
 
-        // Appel register
+        // Appel register (SANS phone)
         $GLOBALS['testResponse'] = null;
-        $testService->register($fullname, $email, $password, $phone);
+        $testService->register($fullname, $email, $password);
 
-        // --- 6) Vérification
+        // --- 5) Vérification
         $response = $GLOBALS['testResponse'];
-        $this->assertNotNull($response, 'A JSON response should be generated');
+        $this->assertNotNull($response);
 
         /** @var JsonResponse $responseObj */
         $responseObj = $response;
@@ -125,9 +124,8 @@ final class UserServiceTest extends TestCase
         $fullname = 'Gaspard Kirira';
         $email = 'gaspard@example.com';
         $password = 'StrongPass123!';
-        $phone = '+256712345678';
 
-        // --- 1) Utilisateur existant
+        // --- 1) Fake user déjà existant
         $role = new Role(1, 'user');
         $existingUser = UserFactory::createFromArray([
             'fullname' => $fullname,
@@ -138,7 +136,7 @@ final class UserServiceTest extends TestCase
             'verifiedEmail' => true,
             'coverPhoto' => null,
             'bio' => null,
-            'phone' => $phone,
+            'phone' => null, // Phone removed
         ]);
 
         $reflectionUser = new \ReflectionClass($existingUser);
@@ -158,7 +156,7 @@ final class UserServiceTest extends TestCase
             ->getMock();
         $validatorMock->method('validate')->willReturn([]);
 
-        // --- 3) Classe de test anonyme
+        // --- 3) override issueAuthForUser
         $testService = new class($this->repositoryMock, $this->authMock) extends UserRegistrationService {
             public function issueAuthForUser(User $user): string
             {
@@ -169,13 +167,13 @@ final class UserServiceTest extends TestCase
         $testService->setValidator($validatorMock);
         $testService->setJsonResponseHandler(fn(?JsonResponse $resp) => $GLOBALS['testResponse'] = $resp);
 
-        // Appel register
+        // Appel register (SANS phone)
         $GLOBALS['testResponse'] = null;
-        $testService->register($fullname, $email, $password, $phone);
+        $testService->register($fullname, $email, $password);
 
         // --- 5) Vérification
         $response = $GLOBALS['testResponse'];
-        $this->assertNotNull($response, 'A JSON response should be generated');
+        $this->assertNotNull($response);
 
         /** @var JsonResponse $responseObj */
         $responseObj = $response;
@@ -184,6 +182,7 @@ final class UserServiceTest extends TestCase
         $this->assertEquals(409, $responseObj->status());
         $this->assertEquals('This email is already taken.', $data['error']);
     }
+
 
     public function testLoginWithCredentialsSuccess(): void
     {

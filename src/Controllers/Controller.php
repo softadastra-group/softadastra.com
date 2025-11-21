@@ -127,7 +127,7 @@ abstract class Controller
             throw new ViewNotFoundException($filePath);
         }
 
-        // Capture du contenu fragment HTML
+        // Capture HTML fragment content
         $content = $this->capture(function () use ($filePath, $params) {
             if (is_array($params)) extract($params, EXTR_SKIP);
             require $filePath;
@@ -137,7 +137,7 @@ abstract class Controller
         $isSPA  = ($params['spa'] ?? false);
 
         /**
-         * 🚀 CAS 1 : SPA + AJAX = on renvoie le fragment + header du titre
+         * 🚀 CASE 1: SPA + AJAX = return the fragment + title header
          */
         if ($isSPA && $isAjax) {
             $pageTitle = self::$layoutVars['title']
@@ -150,7 +150,7 @@ abstract class Controller
         }
 
         /**
-         * 🚀 CAS 2 : Page normale = on enveloppe avec le layout complet
+         * 🚀 CASE 2: Normal page = wrap with the full layout
          */
         $layout = $layoutOverride ?? $this->layout;
         $layoutPath = $this->viewsBasePath() . $layout;
@@ -159,22 +159,22 @@ abstract class Controller
             return new HtmlResponse($content, $status);
         }
 
-        // Générer / s'assurer du token CSRF pour le layout (disponible dans la vue)
-        // Ne force pas la régénération ici (false) pour ne pas invalider inutilement les tokens.
+        // Generate / ensure CSRF token for the layout (available in the view)
+        // Do not force regeneration here (false) to avoid unnecessary invalidation of tokens.
         $__csrf_token = \Ivi\Core\Security\Csrf::generateToken(false);
 
-        // Capture du layout complet — on passe $__csrf_token dans la closure via use
+        // Capture the full layout — pass $__csrf_token into the closure via use
         $full = $this->capture(function () use ($layoutPath, $content, $params, $__csrf_token) {
-            // Injecte les variables de layout et les params
+            // Inject layout variables and params
             $title = self::$layoutVars['title'] ?? ($params['title'] ?? 'Softadastra');
 
             if (!empty(self::$layoutVars)) extract(self::$layoutVars, EXTR_OVERWRITE);
             if (is_array($params)) extract($params, EXTR_OVERWRITE);
 
-            // Flag SPA pour le JS global (spa.js)
+            // SPA flag for global JS (spa.js)
             echo '<script>window.__SPA__ = true;</script>';
 
-            // La vue/layout peut maintenant accéder à $__csrf_token en toute sécurité
+            // The view/layout can now safely access $__csrf_token
             require $layoutPath;
         });
 

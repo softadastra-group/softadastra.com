@@ -9,9 +9,6 @@ $router->get('/auth', [AuthController::class, 'home']);
 $router->get('/auth/login', [AuthController::class, 'showLoginForm']);
 $router->post('/auth/login', [AuthController::class, 'handleLogin']);
 
-// Google OAuth callback
-$router->get('/auth/login/google/callback', [AuthController::class, 'handleGoogleCallback']);
-
 // Registration
 $router->get('/auth/register', [AuthController::class, 'showRegistrationForm']);
 $router->post('/auth/register', [AuthController::class, 'handleRegistration']);
@@ -28,6 +25,10 @@ $router->post('/auth/logout', [AuthController::class, 'logout']);
 // API routes
 $router->get('/auth/api/me', [AuthController::class, 'currentUser']);
 $router->get('/auth/google-login-url', [AuthController::class, 'generateGoogleLoginUrl']);
+
+// Google OAuth callback
+$router->get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
+
 
 
 $router->get('/auth/ping', fn() => new JsonResponse([
